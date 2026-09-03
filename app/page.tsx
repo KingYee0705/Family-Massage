@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   bookingSettings,
   business,
@@ -105,8 +106,17 @@ export default function Home() {
   }
 
   function chooseMenuItem(categoryId: string, itemId: string) {
-    updateGuest(activeGuest.id, { categoryId, itemId, addOnIds: [] });
-    requestAnimationFrame(() => document.querySelector('#booking')?.scrollIntoView({ behavior: 'smooth' }));
+    const guestId = activeGuest.id;
+    flushSync(() => {
+      setGuests((current) => current.map((guest) => guest.id === guestId
+        ? { ...guest, categoryId, itemId, addOnIds: [] }
+        : guest));
+      setFormError('');
+    });
+    requestAnimationFrame(() => document.getElementById(`service-field-${guestId}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    }));
   }
 
   function toggleAddOn(addOnId: string) {
@@ -235,6 +245,10 @@ export default function Home() {
           <p>{menuCategory.intro[locale]}</p>
         </header>
 
+        <p className="menu-booking-target">
+          {text.addingTo} <strong>{activeGuest.name.trim() || `${text.guest} ${activeGuestIndex + 1}`}</strong>
+        </p>
+
         <div className="category-tabs" role="tablist" aria-label={text.treatmentType}>
           {catalog.map((category) => (
             <button
@@ -257,11 +271,17 @@ export default function Home() {
               <div className="menu-label"><span>{text.regularSessions}</span><i /></div>
               <div className="session-grid">
                 {menuCategory.treatments.map((item) => (
-                  <button type="button" className="session-card" onClick={() => chooseMenuItem(menuCategory.id, item.id)} key={item.id}>
+                  <button
+                    type="button"
+                    className={`session-card${activeGuest.categoryId === menuCategory.id && activeGuest.itemId === item.id ? ' selected' : ''}`}
+                    aria-pressed={activeGuest.categoryId === menuCategory.id && activeGuest.itemId === item.id}
+                    onClick={() => chooseMenuItem(menuCategory.id, item.id)}
+                    key={item.id}
+                  >
                     <span className="selection-dot" aria-hidden="true" />
                     <span className="session-name">{item.name[locale]}</span>
                     <strong>{formatRinggit(item.price)}</strong>
-                    <span className="card-action">{text.addToBooking} →</span>
+                    <span className="card-action">{activeGuest.categoryId === menuCategory.id && activeGuest.itemId === item.id ? `✓ ${text.selected}` : `${text.addToBooking} →`}</span>
                   </button>
                 ))}
               </div>
@@ -271,11 +291,17 @@ export default function Home() {
               <div className="menu-label"><span>{text.packages}</span><i /></div>
               <div className="package-list">
                 {menuCategory.packages.map((item, index) => (
-                  <button type="button" className="package-row" onClick={() => chooseMenuItem(menuCategory.id, item.id)} key={item.id}>
+                  <button
+                    type="button"
+                    className={`package-row${activeGuest.categoryId === menuCategory.id && activeGuest.itemId === item.id ? ' selected' : ''}`}
+                    aria-pressed={activeGuest.categoryId === menuCategory.id && activeGuest.itemId === item.id}
+                    onClick={() => chooseMenuItem(menuCategory.id, item.id)}
+                    key={item.id}
+                  >
                     <span className="package-number">{String(index + 1).padStart(2, '0')}</span>
                     <span>{item.name[locale]}</span>
                     <strong>{formatRinggit(item.price)}</strong>
-                    <span aria-hidden="true">↗</span>
+                    <span aria-hidden="true">{activeGuest.categoryId === menuCategory.id && activeGuest.itemId === item.id ? '✓' : '↗'}</span>
                   </button>
                 ))}
               </div>
@@ -364,8 +390,8 @@ export default function Home() {
                   </div>
                 </fieldset>
 
-                <div className="field full-field">
-                  <label htmlFor={`service-${activeGuest.id}`}>{text.selectTreatment} *</label>
+                <div className="field full-field" id={`service-field-${activeGuest.id}`}>
+                  <label htmlFor={`service-${activeGuest.id}`}>{selectedItem ? text.selectedService : text.selectTreatment} *</label>
                   <div className="select-wrap">
                     <select
                       id={`service-${activeGuest.id}`}
