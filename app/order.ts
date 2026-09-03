@@ -80,15 +80,16 @@ export function buildOrderMessage(draft: BookingDraft, reference: string, locale
     const name = guest.name.trim() ? ` - ${guest.name.trim()}` : '';
     const lines = [
       `*GUEST ${index + 1}${name}*`,
+      '',
       `Service: ${category.name.en}`,
       `${item.kind === 'package' ? 'Package' : 'Session'}: ${item.name.en} (${formatRinggit(item.price)})`,
     ];
-    if (extras.length) lines.push('Add-ons:');
+    if (extras.length) lines.push('', 'Add-ons:');
     extras.forEach((extra) => lines.push(`- ${extra!.name.en} (${formatRinggit(extra!.price)})`));
     if (guest.therapistPreference.trim()) {
-      lines.push(`Therapist preference: ${guest.therapistPreference.trim()}`);
+      lines.push('', `Therapist preference: ${guest.therapistPreference.trim()}`);
     }
-    lines.push(`*Guest subtotal: ${formatRinggit(guestTotal(guest))}*`);
+    lines.push('', `*Guest subtotal: ${formatRinggit(guestTotal(guest))}*`);
     return [lines.join('\n')];
   });
 
@@ -99,12 +100,14 @@ export function buildOrderMessage(draft: BookingDraft, reference: string, locale
     '_Pending staff confirmation_',
     '',
     '*APPOINTMENT*',
+    '',
     `Date: ${displayDate(draft.date)}`,
     `Time: ${draft.time}`,
     `Guests: ${draft.guests.length}`,
     '',
     ...guestBlocks.flatMap((block) => [block, '']),
     '*CUSTOMER*',
+    '',
     `Name: ${draft.contactName.trim()}`,
     `WhatsApp: ${draft.contactPhone.trim()}`,
     ...(draft.notes.trim() ? [`Notes: ${draft.notes.trim()}`] : []),
@@ -112,6 +115,7 @@ export function buildOrderMessage(draft: BookingDraft, reference: string, locale
     `*ESTIMATED TOTAL: ${formatRinggit(orderTotal(draft.guests))}*`,
     '',
     '*STAFF ACTION*',
+    '',
     'Please reply to confirm the date, time, services, and therapist availability.',
     '',
     locale === 'zh'
