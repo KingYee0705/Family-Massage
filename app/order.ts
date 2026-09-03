@@ -77,44 +77,47 @@ export function buildOrderMessage(draft: BookingDraft, reference: string, locale
     const extras = guest.addOnIds
       .map((id) => category.addOns.find((entry) => entry.id === id))
       .filter((entry) => Boolean(entry));
-    const name = guest.name.trim() ? ` — ${guest.name.trim()}` : '';
+    const name = guest.name.trim() ? ` - ${guest.name.trim()}` : '';
     const lines = [
       `*GUEST ${index + 1}${name}*`,
-      `• Service: ${category.name.en}`,
-      `• ${item.kind === 'package' ? 'Package' : 'Session'}: ${item.name.en} — ${formatRinggit(item.price)}`,
+      `Service: ${category.name.en}`,
+      `${item.kind === 'package' ? 'Package' : 'Session'}: ${item.name.en} (${formatRinggit(item.price)})`,
     ];
-    extras.forEach((extra) => lines.push(`• Add-on: ${extra!.name.en} — ${formatRinggit(extra!.price)}`));
+    if (extras.length) lines.push('Add-ons:');
+    extras.forEach((extra) => lines.push(`- ${extra!.name.en} (${formatRinggit(extra!.price)})`));
     if (guest.therapistPreference.trim()) {
-      lines.push(`• Therapist preference: ${guest.therapistPreference.trim()}`);
+      lines.push(`Therapist preference: ${guest.therapistPreference.trim()}`);
     }
-    lines.push(`*Subtotal: ${formatRinggit(guestTotal(guest))}*`);
+    lines.push(`*Guest subtotal: ${formatRinggit(guestTotal(guest))}*`);
     return [lines.join('\n')];
   });
 
-  return [
+  const lines = [
     '*NEW BOOKING REQUEST*',
     business.name,
     `Ref: ${reference}`,
     '_Pending staff confirmation_',
     '',
-    '──────────',
     '*APPOINTMENT*',
-    `📅 ${displayDate(draft.date)}`,
-    `🕐 ${draft.time}`,
-    `👥 ${draft.guests.length} ${draft.guests.length === 1 ? 'guest' : 'guests'}`,
+    `Date: ${displayDate(draft.date)}`,
+    `Time: ${draft.time}`,
+    `Guests: ${draft.guests.length}`,
     '',
     ...guestBlocks.flatMap((block) => [block, '']),
-    '──────────',
     '*CUSTOMER*',
     `Name: ${draft.contactName.trim()}`,
     `WhatsApp: ${draft.contactPhone.trim()}`,
-    draft.notes.trim() ? `Notes: ${draft.notes.trim()}` : '',
+    ...(draft.notes.trim() ? [`Notes: ${draft.notes.trim()}`] : []),
     '',
     `*ESTIMATED TOTAL: ${formatRinggit(orderTotal(draft.guests))}*`,
     '',
-    '_Staff: Reply to confirm the time and services._',
+    '*STAFF ACTION*',
+    'Please reply to confirm the date, time, services, and therapist availability.',
+    '',
     locale === 'zh'
-      ? '顾客已了解此预约需等待店员回复确认。'
-      : 'Customer understands this request is pending confirmation.',
-  ].filter(Boolean).join('\n');
+      ? '_顾客已了解此预约尚未确认。_'
+      : '_Customer understands this booking is not confirmed yet._',
+  ];
+
+  return lines.join('\n');
 }
