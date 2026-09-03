@@ -41,10 +41,15 @@ test('formats a complete WhatsApp request', () => {
     notes: 'Quiet room, please',
   };
   const message = buildOrderMessage(draft, 'SFM-260903-ABCD', 'en');
-  assert.match(message, /Maya Lee/);
-  assert.match(message, /Full Body/);
-  assert.match(message, /Estimated total: RM 98/);
-  assert.match(message, /pending staff confirmation/);
+  assert.match(message, /\*NEW BOOKING REQUEST\*/);
+  assert.match(message, /\*APPOINTMENT\*[\s\S]*📅 Fri, 4 Sept 2026[\s\S]*🕐 14:30/);
+  assert.match(message, /\*GUEST 1 — Maya\*/);
+  assert.match(message, /• Service: Full Body Massage/);
+  assert.match(message, /• Session: 1 hour — RM 68/);
+  assert.match(message, /• Add-on: Coconut oil — RM 10/);
+  assert.match(message, /\*CUSTOMER\*[\s\S]*Name: Maya Lee[\s\S]*WhatsApp: 0123456789/);
+  assert.match(message, /\*ESTIMATED TOTAL: RM 98\*/);
+  assert.match(message, /Staff: Reply to confirm the time and services/);
   const url = buildWhatsAppUrl(message);
   assert.ok(url?.startsWith('https://wa.me/6589160743?text='));
   assert.match(decodeURIComponent(url!), /Maya Lee/);

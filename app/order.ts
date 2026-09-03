@@ -70,41 +70,51 @@ function displayDate(date: string) {
 }
 
 export function buildOrderMessage(draft: BookingDraft, reference: string, locale: Locale) {
-  const guestLines = draft.guests.flatMap((guest, index) => {
+  const guestBlocks = draft.guests.flatMap((guest, index) => {
     const category = getCategory(guest.categoryId);
     const item = getMenuItem(guest.categoryId, guest.itemId);
     if (!category || !item) return [];
     const extras = guest.addOnIds
       .map((id) => category.addOns.find((entry) => entry.id === id))
       .filter((entry) => Boolean(entry));
-    const name = guest.name.trim() ? ` · ${guest.name.trim()}` : '';
+    const name = guest.name.trim() ? ` — ${guest.name.trim()}` : '';
     const lines = [
-      `${index + 1}. Guest ${index + 1}${name}`,
-      `   ${category.name.en}: ${item.name.en} — ${formatRinggit(item.price)}`,
+      `*GUEST ${index + 1}${name}*`,
+      `• Service: ${category.name.en}`,
+      `• ${item.kind === 'package' ? 'Package' : 'Session'}: ${item.name.en} — ${formatRinggit(item.price)}`,
     ];
-    if (extras.length) {
-      lines.push(`   Extras: ${extras.map((extra) => `${extra!.name.en} (${formatRinggit(extra!.price)})`).join(', ')}`);
-    }
+    extras.forEach((extra) => lines.push(`• Add-on: ${extra!.name.en} — ${formatRinggit(extra!.price)}`));
     if (guest.therapistPreference.trim()) {
-      lines.push(`   Therapist preference: ${guest.therapistPreference.trim()}`);
+      lines.push(`• Therapist preference: ${guest.therapistPreference.trim()}`);
     }
-    lines.push(`   Subtotal: ${formatRinggit(guestTotal(guest))}`);
-    return lines;
+    lines.push(`*Subtotal: ${formatRinggit(guestTotal(guest))}*`);
+    return [lines.join('\n')];
   });
 
   return [
-    `New appointment request · ${business.name}`,
-    `Reference: ${reference}`,
+    '*NEW BOOKING REQUEST*',
+    business.name,
+    `Ref: ${reference}`,
+    '_Pending staff confirmation_',
     '',
-    ...guestLines,
+    '──────────',
+    '*APPOINTMENT*',
+    `📅 ${displayDate(draft.date)}`,
+    `🕐 ${draft.time}`,
+    `👥 ${draft.guests.length} ${draft.guests.length === 1 ? 'guest' : 'guests'}`,
     '',
-    `Preferred time: ${displayDate(draft.date)} at ${draft.time}`,
-    `Contact: ${draft.contactName.trim()} · ${draft.contactPhone.trim()}`,
+    ...guestBlocks.flatMap((block) => [block, '']),
+    '──────────',
+    '*CUSTOMER*',
+    `Name: ${draft.contactName.trim()}`,
+    `WhatsApp: ${draft.contactPhone.trim()}`,
     draft.notes.trim() ? `Notes: ${draft.notes.trim()}` : '',
-    `Estimated total: ${formatRinggit(orderTotal(draft.guests))}`,
     '',
+    `*ESTIMATED TOTAL: ${formatRinggit(orderTotal(draft.guests))}*`,
+    '',
+    '_Staff: Reply to confirm the time and services._',
     locale === 'zh'
-      ? '我了解此预约需等待店员回复确认。'
-      : 'I understand this request is pending staff confirmation.',
+      ? '顾客已了解此预约需等待店员回复确认。'
+      : 'Customer understands this request is pending confirmation.',
   ].filter(Boolean).join('\n');
 }
