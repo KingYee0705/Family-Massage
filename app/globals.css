@@ -138,7 +138,10 @@ h1 em { color: var(--deep-sage); font-weight: 400; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } }
 .full-field { grid-column: 1 / -1; }
 .field label, .choice-fieldset legend { display: block; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 9px; }
-.field input, .field textarea, .field select { width: 100%; border: 1px solid var(--line); background: #fff; min-height: 50px; padding: 13px 14px; border-radius: 0; color: var(--ink); }
+.field { min-width: 0; }
+.field input, .field textarea, .field select { display: block; width: 100%; min-width: 0; max-width: 100%; border: 1px solid var(--line); background: #fff; min-height: 50px; padding: 13px 14px; border-radius: 0; color: var(--ink); }
+.field input[type='date'], .field input[type='time'] { -webkit-appearance: none; appearance: none; min-inline-size: 0; max-inline-size: 100%; }
+.field input[type='date']::-webkit-date-and-time-value, .field input[type='time']::-webkit-date-and-time-value { min-width: 0; text-align: left; }
 .field textarea { resize: vertical; min-height: 106px; }
 .field input::placeholder, .field textarea::placeholder { color: #8b9792; }
 .field input[aria-invalid='true'], .field select[aria-invalid='true'] { border-color: #a44f43; box-shadow: inset 3px 0 0 #a44f43; }
@@ -158,7 +161,7 @@ h1 em { color: var(--deep-sage); font-weight: 400; }
 .addon-choice-grid label.checked .check-box { background: var(--ink); color: #fff; }
 .addon-choice-grid strong { font-size: 10px; }
 .remove-guest { grid-column: 1 / -1; justify-self: start; border: 0; background: transparent; color: #8e4e46; padding: 6px 0; font-size: 11px; text-decoration: underline; cursor: pointer; }
-.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.field-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; min-width: 0; }
 
 .order-summary { border: 1px solid rgba(255,255,255,.28); padding: 26px; position: sticky; top: 100px; }
 .summary-topline { display: flex; justify-content: space-between; text-transform: uppercase; letter-spacing: .15em; font-size: 9px; padding-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.24); }
