@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOrderMessage, createReference, guestTotal, isFutureAppointment, orderTotal } from './order.ts';
+import { buildOrderMessage, buildWhatsAppUrl, createReference, guestTotal, isFutureAppointment, orderTotal } from './order.ts';
 import type { BookingDraft } from './order.ts';
 
 const guest = {
@@ -45,4 +45,7 @@ test('formats a complete WhatsApp request', () => {
   assert.match(message, /Full Body/);
   assert.match(message, /Estimated total: RM 98/);
   assert.match(message, /pending staff confirmation/);
+  const url = buildWhatsAppUrl(message);
+  assert.ok(url?.startsWith('https://wa.me/6589160743?text='));
+  assert.match(decodeURIComponent(url!), /Maya Lee/);
 });

@@ -40,7 +40,7 @@ export type GuestSelection = {
 
 export const business = {
   name: 'Serene Family Massage',
-  whatsappNumber: '', // Add the shop number in international format before launch, e.g. 60123456789.
+  whatsappNumber: '6589160743', // International format without the leading plus sign.
   hours: {
     en: 'Opening hours to be added',
     zh: '营业时间待补充',

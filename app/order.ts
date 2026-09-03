@@ -38,6 +38,11 @@ export function formatRinggit(value: number) {
   return `RM ${value}`;
 }
 
+export function buildWhatsAppUrl(message: string, phone = business.whatsappNumber) {
+  if (!phone) return null;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
 export function isFutureAppointment(date: string, time: string, now = new Date()) {
   if (!date || !time) return false;
   const appointment = new Date(`${date}T${time}:00`);

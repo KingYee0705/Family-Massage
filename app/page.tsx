@@ -10,6 +10,7 @@ import {
 } from './catalog';
 import {
   buildOrderMessage,
+  buildWhatsAppUrl,
   createReference,
   formatRinggit,
   getCategory,
@@ -143,11 +144,11 @@ export default function Home() {
   }
 
   function openWhatsApp() {
-    if (!business.whatsappNumber) {
+    const url = buildWhatsAppUrl(orderMessage);
+    if (!url) {
       setSendStatus('missing');
       return;
     }
-    const url = `https://wa.me/${business.whatsappNumber}?text=${encodeURIComponent(orderMessage)}`;
     const opened = window.open(url, '_blank', 'noopener,noreferrer');
     if (!opened) setSendStatus('blocked');
   }
