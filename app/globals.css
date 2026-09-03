@@ -148,6 +148,7 @@ h1 em { color: var(--deep-sage); font-weight: 400; }
 .select-wrap { position: relative; }
 .select-wrap select { appearance: none; padding-right: 42px; }
 .select-wrap > span { position: absolute; right: 16px; top: 13px; pointer-events: none; }
+.field-help { margin: 8px 0 0; color: #66756e; font-size: 10px; line-height: 1.5; }
 .choice-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .category-choice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .category-choice-grid button { min-height: 70px; border: 1px solid var(--line); background: #fff; padding: 10px; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: left; font-family: Georgia, serif; font-size: 12px; line-height: 1.25; }

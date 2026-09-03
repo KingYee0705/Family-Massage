@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  bookingSettings,
   business,
   catalog,
   ui,
@@ -11,6 +12,7 @@ import {
 import {
   buildOrderMessage,
   buildWhatsAppUrl,
+  createTimeSlots,
   createReference,
   formatRinggit,
   getCategory,
@@ -20,6 +22,12 @@ import {
   orderTotal,
   type BookingDraft,
 } from './order';
+
+const timeSlots = createTimeSlots(
+  bookingSettings.firstTime,
+  bookingSettings.lastTime,
+  bookingSettings.intervalMinutes,
+);
 
 const emptyGuest = (id: string): GuestSelection => ({
   id,
@@ -425,7 +433,14 @@ export default function Home() {
                 </div>
                 <div className="field">
                   <label htmlFor="booking-time">{text.preferredTime} *</label>
-                  <input id="booking-time" type="time" value={time} onChange={(event) => { setTime(event.target.value); setFormError(''); }} aria-invalid={Boolean(formError && !time)} required />
+                  <div className="select-wrap">
+                    <select id="booking-time" value={time} onChange={(event) => { setTime(event.target.value); setFormError(''); }} aria-invalid={Boolean(formError && !time)} required>
+                      <option value="">— {text.chooseTime} —</option>
+                      {timeSlots.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
+                    </select>
+                    <span aria-hidden="true">⌄</span>
+                  </div>
+                  <p className="field-help">{text.timeRequestNote}</p>
                 </div>
                 <div className="field">
                   <label htmlFor="contact-name">{text.contactName} *</label>

@@ -49,6 +49,24 @@ export function isFutureAppointment(date: string, time: string, now = new Date()
   return !Number.isNaN(appointment.getTime()) && appointment.getTime() > now.getTime();
 }
 
+export function createTimeSlots(firstTime: string, lastTime: string, intervalMinutes: number) {
+  const toMinutes = (value: string) => {
+    const [hours, minutes] = value.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+  const start = toMinutes(firstTime);
+  const end = toMinutes(lastTime);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || intervalMinutes <= 0 || end < start) return [];
+
+  const slots: string[] = [];
+  for (let value = start; value <= end; value += intervalMinutes) {
+    const hours = Math.floor(value / 60);
+    const minutes = value % 60;
+    slots.push(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`);
+  }
+  return slots;
+}
+
 export function createReference(now = new Date(), random = Math.random()) {
   const date = [
     String(now.getFullYear()).slice(-2),
@@ -116,11 +134,11 @@ export function buildOrderMessage(draft: BookingDraft, reference: string, locale
     '',
     '*STAFF ACTION*',
     '',
-    'Please reply to confirm the date, time, services, and therapist availability.',
+    'Please reply to confirm this time or suggest the nearest available time.',
     '',
     locale === 'zh'
-      ? '_顾客已了解此预约尚未确认。_'
-      : '_Customer understands this booking is not confirmed yet._',
+      ? '_顾客已了解所选时间在店员确认前并未保留。_'
+      : '_Customer understands the requested time is not reserved until staff confirms it._',
   ];
 
   return lines.join('\n');

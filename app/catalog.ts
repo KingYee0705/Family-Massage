@@ -51,6 +51,14 @@ export const business = {
   },
 } as const;
 
+// Temporary test hours. Replace these with the shop's real opening hours and
+// last-booking rules before the site is made public.
+export const bookingSettings = {
+  firstTime: '10:00',
+  lastTime: '21:30',
+  intervalMinutes: 30,
+} as const;
+
 const duration = (id: string, en: string, zh: string, price: number): MenuItem => ({
   id,
   name: { en, zh },
@@ -238,6 +246,8 @@ export const ui = {
     appointment: 'Appointment request',
     preferredDate: 'Preferred date',
     preferredTime: 'Preferred time',
+    chooseTime: 'Choose a preferred time',
+    timeRequestNote: 'This is a time request, not a reserved slot. Staff will confirm it or suggest the nearest available time in WhatsApp.',
     contactName: 'Contact name',
     whatsappPhone: 'WhatsApp phone number',
     notes: 'Notes (optional)',
@@ -247,11 +257,11 @@ export const ui = {
     subtotal: 'Subtotal',
     total: 'Estimated total',
     review: 'Review request',
-    payNote: 'No payment now. Final timing and service availability are confirmed by staff.',
+    payNote: 'No payment now. Your time is not reserved until staff confirms it in WhatsApp.',
     reviewTitle: 'One last look.',
     reference: 'Reference',
     sendWhatsApp: 'Send in WhatsApp',
-    sendHint: 'WhatsApp will open with your request ready. Tap Send there to complete it.',
+    sendHint: 'WhatsApp will open with your request ready. Staff will reply to confirm it or offer another time.',
     copySummary: 'Copy request',
     copied: 'Request copied',
     close: 'Close',
@@ -297,6 +307,8 @@ export const ui = {
     appointment: '预约要求',
     preferredDate: '希望日期',
     preferredTime: '希望时间',
+    chooseTime: '选择希望时间',
+    timeRequestNote: '这只是时间要求，并非已保留时段。店员会通过 WhatsApp 确认，或建议最接近的可用时间。',
     contactName: '联系人姓名',
     whatsappPhone: 'WhatsApp 手机号码',
     notes: '备注（选填）',
@@ -306,11 +318,11 @@ export const ui = {
     subtotal: '小计',
     total: '预计总额',
     review: '查看预约要求',
-    payNote: '现在无需付款。最终时间和服务安排由店员回复确认。',
+    payNote: '现在无需付款。所选时间在店员通过 WhatsApp 确认前并未保留。',
     reviewTitle: '最后确认。',
     reference: '参考编号',
     sendWhatsApp: '通过 WhatsApp 发送',
-    sendHint: 'WhatsApp 将打开并显示您的预约要求，请在 WhatsApp 中点击发送完成。',
+    sendHint: 'WhatsApp 将打开并显示您的预约要求。店员会回复确认，或建议其他时间。',
     copySummary: '复制预约要求',
     copied: '已复制预约要求',
     close: '关闭',
