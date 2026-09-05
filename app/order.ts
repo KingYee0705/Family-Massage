@@ -1,4 +1,4 @@
-import { business, catalog, type GuestSelection, type Locale } from './catalog.ts';
+import { bookingSettings, business, catalog, type GuestSelection, type Locale } from './catalog.ts';
 
 export type BookingDraft = {
   guests: GuestSelection[];
@@ -7,6 +7,23 @@ export type BookingDraft = {
   contactName: string;
   contactPhone: string;
   notes: string;
+};
+
+export type DemoAvailabilitySettings = {
+  firstTime: string;
+  lastTime: string;
+  closingTime: string;
+  intervalMinutes: number;
+  estimatedTherapists: number;
+  turnaroundMinutes: number;
+  estimatedBusyTherapistsByTime: Readonly<Record<string, number>>;
+  estimatedItemDurationMinutes: Readonly<Record<string, number>>;
+  estimatedAddOnDurationMinutes: Readonly<Record<string, number>>;
+};
+
+export type DemoTimeSlot = {
+  time: string;
+  available: boolean;
 };
 
 export function getCategory(categoryId: string) {
@@ -65,6 +82,61 @@ export function createTimeSlots(firstTime: string, lastTime: string, intervalMin
     slots.push(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`);
   }
   return slots;
+}
+
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function minutesToTime(value: number) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+export function estimatedGuestDuration(
+  guest: GuestSelection,
+  settings: DemoAvailabilitySettings = bookingSettings,
+) {
+  const itemMinutes = settings.estimatedItemDurationMinutes[guest.itemId];
+  if (!itemMinutes) return 0;
+  return itemMinutes + guest.addOnIds.reduce(
+    (total, id) => total + (settings.estimatedAddOnDurationMinutes[id] ?? 0),
+    0,
+  );
+}
+
+export function estimateTimeSlotAvailability(
+  guests: GuestSelection[],
+  date: string,
+  now = new Date(),
+  settings: DemoAvailabilitySettings = bookingSettings,
+): DemoTimeSlot[] {
+  const times = createTimeSlots(settings.firstTime, settings.lastTime, settings.intervalMinutes);
+  const durations = guests.map((guest) => estimatedGuestDuration(guest, settings));
+  const canCalculate = Boolean(date) && durations.length > 0 && durations.every((duration) => duration > 0);
+  const closingMinutes = timeToMinutes(settings.closingTime);
+
+  return times.map((time) => {
+    if (!canCalculate || !isFutureAppointment(date, time, now)) return { time, available: false };
+
+    const startMinutes = timeToMinutes(time);
+    const longestBooking = Math.max(...durations) + settings.turnaroundMinutes;
+    if (startMinutes + longestBooking > closingMinutes) return { time, available: false };
+
+    for (let elapsed = 0; elapsed < longestBooking; elapsed += settings.intervalMinutes) {
+      const activeGuests = durations.filter(
+        (duration) => elapsed < duration + settings.turnaroundMinutes,
+      ).length;
+      const busyTherapists = settings.estimatedBusyTherapistsByTime[minutesToTime(startMinutes + elapsed)] ?? 0;
+      if (busyTherapists + activeGuests > settings.estimatedTherapists) {
+        return { time, available: false };
+      }
+    }
+
+    return { time, available: true };
+  });
 }
 
 export function createReference(now = new Date(), random = Math.random()) {

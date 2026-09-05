@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOrderMessage, buildWhatsAppUrl, createReference, createTimeSlots, guestTotal, isFutureAppointment, orderTotal } from './order.ts';
+import { bookingSettings, catalog } from './catalog.ts';
+import { buildOrderMessage, buildWhatsAppUrl, createReference, createTimeSlots, estimateTimeSlotAvailability, estimatedGuestDuration, guestTotal, isFutureAppointment, orderTotal } from './order.ts';
 import type { BookingDraft } from './order.ts';
 
 const guest = {
@@ -27,11 +28,37 @@ test('checks that the requested time is in the future', () => {
   assert.equal(isFutureAppointment('2026-09-03', '11:30', now), false);
 });
 
-test('creates inclusive 30-minute time choices for the scroll selector', () => {
+test('creates inclusive 30-minute booking time choices', () => {
   const slots = createTimeSlots('10:00', '21:30', 30);
   assert.equal(slots.length, 24);
   assert.equal(slots[0], '10:00');
   assert.equal(slots.at(-1), '21:30');
+});
+
+test('has an estimated duration for every service and add-on', () => {
+  for (const category of catalog) {
+    for (const item of category.treatments.concat(category.packages)) {
+      assert.ok(bookingSettings.estimatedItemDurationMinutes[item.id as keyof typeof bookingSettings.estimatedItemDurationMinutes] > 0, item.id);
+    }
+    for (const extra of category.addOns) {
+      assert.notEqual(bookingSettings.estimatedAddOnDurationMinutes[extra.id as keyof typeof bookingSettings.estimatedAddOnDurationMinutes], undefined, extra.id);
+    }
+  }
+});
+
+test('adds estimated add-on time to a guest visit', () => {
+  assert.equal(estimatedGuestDuration(guest), 90);
+});
+
+test('disables a start time when overlapping services exceed estimated staff capacity', () => {
+  const longGuest = { ...guest, itemId: 'body-120', addOnIds: [] };
+  const now = new Date('2026-09-03T12:00:00');
+  const oneGuestSlots = estimateTimeSlotAvailability([longGuest], '2026-09-04', now);
+  const twoGuestSlots = estimateTimeSlotAvailability([longGuest, { ...longGuest, id: 'guest-2' }], '2026-09-04', now);
+
+  assert.equal(oneGuestSlots.find((slot) => slot.time === '14:00')?.available, true);
+  assert.equal(twoGuestSlots.find((slot) => slot.time === '14:00')?.available, false);
+  assert.equal(oneGuestSlots.find((slot) => slot.time === '20:00')?.available, false);
 });
 
 test('creates a stable-format reference', () => {

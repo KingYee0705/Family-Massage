@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
-  bookingSettings,
   business,
   catalog,
   ui,
@@ -13,8 +12,9 @@ import {
 import {
   buildOrderMessage,
   buildWhatsAppUrl,
-  createTimeSlots,
   createReference,
+  estimateTimeSlotAvailability,
+  estimatedGuestDuration,
   formatRinggit,
   getCategory,
   getMenuItem,
@@ -23,12 +23,6 @@ import {
   orderTotal,
   type BookingDraft,
 } from './order';
-
-const timeSlots = createTimeSlots(
-  bookingSettings.firstTime,
-  bookingSettings.lastTime,
-  bookingSettings.intervalMinutes,
-);
 
 const emptyGuest = (id: string): GuestSelection => ({
   id,
@@ -42,6 +36,15 @@ const emptyGuest = (id: string): GuestSelection => ({
 function localDateValue(date: Date) {
   const offset = date.getTimezoneOffset();
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 10);
+}
+
+function durationLabel(minutes: number, locale: Locale) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (locale === 'zh') {
+    return `${hours ? `${hours} 小时` : ''}${remainder ? ` ${remainder} 分钟` : ''}`.trim();
+  }
+  return `${hours ? `${hours} hr` : ''}${remainder ? ` ${remainder} min` : ''}`.trim();
 }
 
 export default function Home() {
@@ -67,6 +70,17 @@ export default function Home() {
   const activeCategory = getCategory(activeGuest.categoryId)!;
   const selectedItem = getMenuItem(activeGuest.categoryId, activeGuest.itemId);
   const total = orderTotal(guests);
+  const allGuestsConfigured = guests.every((guest) => Boolean(getMenuItem(guest.categoryId, guest.itemId)));
+  const estimatedVisitMinutes = Math.max(0, ...guests.map((guest) => estimatedGuestDuration(guest)));
+  const demoTimeSlots = useMemo(
+    () => estimateTimeSlotAvailability(guests, date),
+    [guests, date],
+  );
+  const groupedTimeSlots = [
+    { label: text.morning, slots: demoTimeSlots.filter((slot) => Number(slot.time.slice(0, 2)) < 12) },
+    { label: text.afternoon, slots: demoTimeSlots.filter((slot) => Number(slot.time.slice(0, 2)) >= 12 && Number(slot.time.slice(0, 2)) < 17) },
+    { label: text.evening, slots: demoTimeSlots.filter((slot) => Number(slot.time.slice(0, 2)) >= 17) },
+  ];
 
   const draft: BookingDraft = useMemo(() => ({
     guests,
@@ -98,6 +112,7 @@ export default function Home() {
 
   function updateGuest(id: string, patch: Partial<GuestSelection>) {
     setGuests((current) => current.map((guest) => guest.id === id ? { ...guest, ...patch } : guest));
+    if ('categoryId' in patch || 'itemId' in patch || 'addOnIds' in patch) setTime('');
     setFormError('');
   }
 
@@ -111,6 +126,7 @@ export default function Home() {
       setGuests((current) => current.map((guest) => guest.id === guestId
         ? { ...guest, categoryId, itemId, addOnIds: [] }
         : guest));
+      setTime('');
       setFormError('');
     });
     requestAnimationFrame(() => document.getElementById(`service-field-${guestId}`)?.scrollIntoView({
@@ -133,6 +149,7 @@ export default function Home() {
     const next = [...guests, emptyGuest(`guest-${Date.now()}`)];
     setGuests(next);
     setActiveGuestIndex(next.length - 1);
+    setTime('');
     setFormError('');
   }
 
@@ -141,6 +158,7 @@ export default function Home() {
     const next = guests.filter((_, guestIndex) => guestIndex !== index);
     setGuests(next);
     setActiveGuestIndex(Math.min(index, next.length - 1));
+    setTime('');
     setFormError('');
   }
 
@@ -455,18 +473,52 @@ export default function Home() {
               <div className="field-grid">
                 <div className="field">
                   <label htmlFor="booking-date">{text.preferredDate} *</label>
-                  <input id="booking-date" type="date" min={minimumDate} value={date} onChange={(event) => { setDate(event.target.value); setFormError(''); }} aria-invalid={Boolean(formError && !date)} required />
+                  <input id="booking-date" type="date" min={minimumDate} value={date} onChange={(event) => { setDate(event.target.value); setTime(''); setFormError(''); }} aria-invalid={Boolean(formError && !date)} required />
                 </div>
-                <div className="field">
-                  <label htmlFor="booking-time">{text.preferredTime} *</label>
-                  <div className="select-wrap">
-                    <select id="booking-time" value={time} onChange={(event) => { setTime(event.target.value); setFormError(''); }} aria-invalid={Boolean(formError && !time)} required>
-                      <option value="">— {text.chooseTime} —</option>
-                      {timeSlots.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
-                    </select>
-                    <span aria-hidden="true">⌄</span>
+                <div className="field demo-availability full-field">
+                  <div className="availability-heading">
+                    <div>
+                      <label id="booking-time-label">{text.preferredTime} *</label>
+                      <strong>{text.demoAvailability}</strong>
+                    </div>
+                    {estimatedVisitMinutes > 0 && (
+                      <p><span>{text.estimatedVisit}</span>{durationLabel(estimatedVisitMinutes, locale)}</p>
+                    )}
                   </div>
-                  <p className="field-help">{text.timeRequestNote}</p>
+                  <p className="demo-note">{text.demoAvailabilityNote}</p>
+
+                  {!date && <p className="availability-prompt">{text.selectDateFirst}</p>}
+                  {date && !allGuestsConfigured && <p className="availability-prompt">{text.selectServicesFirst}</p>}
+                  {date && allGuestsConfigured && (
+                    <div className={`time-slot-groups${formError && !time ? ' invalid' : ''}`} role="group" aria-labelledby="booking-time-label" aria-describedby="booking-time-help">
+                      {groupedTimeSlots.map((group) => (
+                        <div className="time-slot-group" key={group.label}>
+                          <p>{group.label}</p>
+                          <div className="time-slot-grid">
+                            {group.slots.map((slot) => (
+                              <button
+                                type="button"
+                                className={time === slot.time ? 'selected' : ''}
+                                disabled={!slot.available}
+                                aria-pressed={time === slot.time}
+                                onClick={() => { setTime(slot.time); setFormError(''); }}
+                                key={slot.time}
+                              >
+                                {slot.time}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {!demoTimeSlots.some((slot) => slot.available) && <p className="availability-prompt">{text.noDemoTimes}</p>}
+                    </div>
+                  )}
+
+                  <div className="availability-legend" aria-hidden="true">
+                    <span><i />{text.availableLegend}</span>
+                    <span><i className="unavailable" />{text.unavailableLegend}</span>
+                  </div>
+                  <p className="field-help" id="booking-time-help">{text.timeRequestNote}</p>
                 </div>
                 <div className="field">
                   <label htmlFor="contact-name">{text.contactName} *</label>
