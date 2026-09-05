@@ -181,7 +181,16 @@ h1 em { color: var(--deep-sage); font-weight: 400; }
 .availability-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .availability-legend i { width: 11px; height: 11px; border: 1px solid var(--line); background: #fff; }
 .availability-legend i.unavailable { background: #f0efec; }
+.booking-policy { padding: 14px 16px; background: #f4eadf; border-left: 3px solid var(--apricot); }
+.booking-policy strong { display: block; margin-bottom: 5px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.booking-policy p { margin: 0; color: #6d5d50; font-size: 10px; line-height: 1.55; }
 .choice-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.group-timing-fieldset > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.group-timing-fieldset label { min-height: 58px; display: grid; grid-template-columns: 18px 1fr; align-items: center; gap: 9px; border: 1px solid var(--line); background: #fff; padding: 11px; cursor: pointer; font-size: 11px; line-height: 1.4; }
+.group-timing-fieldset label.selected { border-color: var(--deep-sage); background: #e6ece7; }
+.group-timing-fieldset input { position: absolute; opacity: 0; pointer-events: none; }
+.group-timing-fieldset label > span { width: 17px; height: 17px; border: 1px solid var(--deep-sage); border-radius: 50%; box-shadow: inset 0 0 0 4px #fff; background: #fff; }
+.group-timing-fieldset label.selected > span { background: var(--deep-sage); }
 .category-choice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .category-choice-grid button { min-height: 70px; border: 1px solid var(--line); background: #fff; padding: 10px; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: left; font-family: Georgia, serif; font-size: 12px; line-height: 1.25; }
 .category-choice-grid button span { font-family: Arial, sans-serif; font-size: 8px; }
@@ -208,6 +217,7 @@ h1 em { color: var(--deep-sage); font-weight: 400; }
 .summary-guest ul { list-style: none; padding: 0 0 0 32px; margin: 8px 0 0; color: #b9c6c0; font-size: 10px; line-height: 1.55; }
 .summary-time { display: flex; gap: 10px; align-items: center; color: #c9d4cf; font-size: 11px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.16); }
 .summary-time span { font-size: 17px; }
+.summary-group-timing { margin: 0; padding: 13px 0; border-bottom: 1px solid rgba(255,255,255,.16); color: #b9c6c0; font-size: 10px; line-height: 1.45; }
 .summary-total { display: flex; align-items: baseline; justify-content: space-between; padding: 22px 0; }
 .summary-total span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
 .summary-total strong { font-family: Georgia, serif; font-size: 31px; font-weight: 400; }
@@ -237,6 +247,7 @@ footer > p { margin: 0; color: #7f948b; font-size: 9px; text-align: right; }
 .dialog-appointment > div:last-child { border-right: 0; }
 .dialog-appointment span { font-size: 8px; text-transform: uppercase; letter-spacing: .1em; }
 .dialog-appointment strong { font-family: Georgia, serif; font-size: 14px; font-weight: 400; overflow-wrap: anywhere; }
+.dialog-group-timing { margin: 0 0 12px; padding: 10px 12px; background: #edf1ed; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .dialog-guests > div { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; padding: 15px 0; border-bottom: 1px solid var(--line); }
 .dialog-guests > div > span { font-size: 9px; }
 .dialog-guests strong { font-family: Georgia, serif; font-size: 16px; font-weight: 400; }
@@ -301,6 +312,7 @@ footer > p { margin: 0; color: #7f948b; font-size: 9px; text-align: right; }
   .guest-editor, .field-grid { grid-template-columns: 1fr; }
   .full-field { grid-column: 1; }
   .addon-choice-grid { grid-template-columns: 1fr; }
+  .group-timing-fieldset > div { grid-template-columns: 1fr; }
   .validation-summary { grid-template-columns: 42px 1fr; gap: 12px; padding: 16px 14px; }
   .validation-count { width: 38px; height: 38px; font-size: 16px; }
   .validation-summary h3 { font-size: 19px; }

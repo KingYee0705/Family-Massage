@@ -53,6 +53,7 @@ export default function Home() {
   const [menuCategoryId, setMenuCategoryId] = useState(catalog[0].id);
   const [guests, setGuests] = useState<GuestSelection[]>([emptyGuest('guest-1')]);
   const [activeGuestIndex, setActiveGuestIndex] = useState(0);
+  const [groupTiming, setGroupTiming] = useState<'together' | 'flexible'>('together');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [contactName, setContactName] = useState('');
@@ -86,12 +87,13 @@ export default function Home() {
 
   const draft: BookingDraft = useMemo(() => ({
     guests,
+    groupTiming,
     date,
     time,
     contactName,
     contactPhone,
     notes,
-  }), [guests, date, time, contactName, contactPhone, notes]);
+  }), [guests, groupTiming, date, time, contactName, contactPhone, notes]);
   const validationIssues = getBookingValidationIssues(draft);
 
   const orderMessage = useMemo(
@@ -174,6 +176,7 @@ export default function Home() {
     if (issue.kind === 'date_required') return text.missingDate;
     if (issue.kind === 'time_required') return text.missingTime;
     if (issue.kind === 'past_time') return text.pastTime;
+    if (issue.kind === 'minimum_notice') return text.minimumNotice;
     if (issue.kind === 'contact_name') return text.invalidContactName;
     return text.invalidPhone;
   }
@@ -186,7 +189,7 @@ export default function Home() {
       targetId = `service-field-${guest.id}`;
     } else if (issue.kind === 'date_required' || issue.kind === 'past_time') {
       targetId = 'booking-date';
-    } else if (issue.kind === 'time_required') {
+    } else if (issue.kind === 'time_required' || issue.kind === 'minimum_notice') {
       targetId = 'booking-time-field';
     } else if (issue.kind === 'contact_name') {
       targetId = 'contact-name';
@@ -531,6 +534,23 @@ export default function Home() {
                 </div>
               </div>
               <div className="field-grid">
+                {guests.length > 1 && (
+                  <fieldset className="full-field choice-fieldset group-timing-fieldset">
+                    <legend>{text.groupTiming}</legend>
+                    <div>
+                      <label className={groupTiming === 'together' ? 'selected' : ''}>
+                        <input type="radio" name="group-timing" checked={groupTiming === 'together'} onChange={() => setGroupTiming('together')} />
+                        <span aria-hidden="true" />
+                        {text.startTogether}
+                      </label>
+                      <label className={groupTiming === 'flexible' ? 'selected' : ''}>
+                        <input type="radio" name="group-timing" checked={groupTiming === 'flexible'} onChange={() => setGroupTiming('flexible')} />
+                        <span aria-hidden="true" />
+                        {text.flexibleStart}
+                      </label>
+                    </div>
+                  </fieldset>
+                )}
                 <div className="field">
                   <label htmlFor="booking-date">{text.preferredDate} *</label>
                   <input id="booking-date" type="date" min={minimumDate} value={date} onChange={(event) => { setDate(event.target.value); setTime(''); }} aria-invalid={hasValidationIssue('date_required') || hasValidationIssue('past_time')} required />
@@ -550,7 +570,7 @@ export default function Home() {
                   {!date && <p className="availability-prompt">{text.selectDateFirst}</p>}
                   {date && !allGuestsConfigured && <p className="availability-prompt">{text.selectServicesFirst}</p>}
                   {date && allGuestsConfigured && (
-                    <div className={`time-slot-groups${hasValidationIssue('time_required') || hasValidationIssue('past_time') ? ' invalid' : ''}`} role="group" aria-labelledby="booking-time-label" aria-describedby="booking-time-help">
+                    <div className={`time-slot-groups${hasValidationIssue('time_required') || hasValidationIssue('past_time') || hasValidationIssue('minimum_notice') ? ' invalid' : ''}`} role="group" aria-labelledby="booking-time-label" aria-describedby="booking-time-help">
                       {groupedTimeSlots.map((group) => (
                         <div className="time-slot-group" key={group.label}>
                           <p>{group.label}</p>
@@ -579,6 +599,10 @@ export default function Home() {
                     <span><i className="unavailable" />{text.unavailableLegend}</span>
                   </div>
                   <p className="field-help" id="booking-time-help">{text.timeRequestNote}</p>
+                </div>
+                <div className="booking-policy full-field">
+                  <strong>{text.bookingPolicy}</strong>
+                  <p>{text.minimumNotice} {text.policySummary}</p>
                 </div>
                 <div className="field">
                   <label htmlFor="contact-name">{text.contactName} *</label>
@@ -625,6 +649,7 @@ export default function Home() {
               })}
             </div>
             {(date || time) && <p className="summary-time"><span>◷</span>{date || '—'} · {time || '—'}</p>}
+            {guests.length > 1 && <p className="summary-group-timing">{groupTiming === 'flexible' ? text.flexibleStart : text.startTogether}</p>}
             <div className="summary-total">
               <span>{text.total}</span>
               <strong>{formatRinggit(total)}</strong>
@@ -665,6 +690,7 @@ export default function Home() {
               <div><span>{text.preferredTime}</span><strong>{time}</strong></div>
               <div><span>{text.contactName}</span><strong>{contactName}</strong></div>
             </div>
+            {guests.length > 1 && <p className="dialog-group-timing"><strong>{text.groupTiming}:</strong> {groupTiming === 'flexible' ? text.flexibleStart : text.startTogether}</p>}
 
             <div className="dialog-guests">
               {guests.map((guest, index) => {

@@ -2,6 +2,7 @@ import { bookingSettings, business, catalog, type GuestSelection, type Locale } 
 
 export type BookingDraft = {
   guests: GuestSelection[];
+  groupTiming: 'together' | 'flexible';
   date: string;
   time: string;
   contactName: string;
@@ -14,7 +15,9 @@ export type DemoAvailabilitySettings = {
   lastTime: string;
   closingTime: string;
   intervalMinutes: number;
+  minimumLeadMinutes: number;
   estimatedTherapists: number;
+  maximumConcurrentCustomers: number;
   turnaroundMinutes: number;
   estimatedBusyTherapistsByTime: Readonly<Record<string, number>>;
   estimatedItemDurationMinutes: Readonly<Record<string, number>>;
@@ -31,6 +34,7 @@ export type BookingValidationIssue =
   | { kind: 'date_required' }
   | { kind: 'time_required' }
   | { kind: 'past_time' }
+  | { kind: 'minimum_notice' }
   | { kind: 'contact_name' }
   | { kind: 'contact_phone' };
 
@@ -68,10 +72,11 @@ export function buildWhatsAppUrl(message: string, phone = business.whatsappNumbe
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
-export function isFutureAppointment(date: string, time: string, now = new Date()) {
+export function isFutureAppointment(date: string, time: string, now = new Date(), minimumLeadMinutes = 0) {
   if (!date || !time) return false;
   const appointment = new Date(`${date}T${time}:00`);
-  return !Number.isNaN(appointment.getTime()) && appointment.getTime() > now.getTime();
+  return !Number.isNaN(appointment.getTime())
+    && appointment.getTime() >= now.getTime() + minimumLeadMinutes * 60_000;
 }
 
 export function isValidBookingPhone(phone: string) {
@@ -85,7 +90,11 @@ export function getBookingValidationIssues(draft: BookingDraft, now = new Date()
   });
   if (!draft.date) issues.push({ kind: 'date_required' });
   if (!draft.time) issues.push({ kind: 'time_required' });
-  if (draft.date && draft.time && !isFutureAppointment(draft.date, draft.time, now)) issues.push({ kind: 'past_time' });
+  if (draft.date && draft.time && !isFutureAppointment(draft.date, draft.time, now)) {
+    issues.push({ kind: 'past_time' });
+  } else if (draft.date && draft.time && !isFutureAppointment(draft.date, draft.time, now, bookingSettings.minimumLeadMinutes)) {
+    issues.push({ kind: 'minimum_notice' });
+  }
   if (draft.contactName.trim().length < 2) issues.push({ kind: 'contact_name' });
   if (!isValidBookingPhone(draft.contactPhone)) issues.push({ kind: 'contact_phone' });
   return issues;
@@ -144,7 +153,7 @@ export function estimateTimeSlotAvailability(
   const closingMinutes = timeToMinutes(settings.closingTime);
 
   return times.map((time) => {
-    if (!canCalculate || !isFutureAppointment(date, time, now)) return { time, available: false };
+    if (!canCalculate || !isFutureAppointment(date, time, now, settings.minimumLeadMinutes)) return { time, available: false };
 
     const startMinutes = timeToMinutes(time);
     const longestBooking = Math.max(...durations) + settings.turnaroundMinutes;
@@ -155,7 +164,8 @@ export function estimateTimeSlotAvailability(
         (duration) => elapsed < duration + settings.turnaroundMinutes,
       ).length;
       const busyTherapists = settings.estimatedBusyTherapistsByTime[minutesToTime(startMinutes + elapsed)] ?? 0;
-      if (busyTherapists + activeGuests > settings.estimatedTherapists) {
+      const capacityLimit = Math.min(settings.estimatedTherapists, settings.maximumConcurrentCustomers);
+      if (busyTherapists + activeGuests > capacityLimit) {
         return { time, available: false };
       }
     }
@@ -219,6 +229,7 @@ export function buildOrderMessage(draft: BookingDraft, reference: string, locale
     `Date: ${displayDate(draft.date)}`,
     `Time: ${draft.time}`,
     `Guests: ${draft.guests.length}`,
+    ...(draft.guests.length > 1 ? [`Group timing: ${draft.groupTiming === 'flexible' ? 'Flexible or staggered starts are okay' : 'Prefer to start together'}`] : []),
     '',
     ...guestBlocks.flatMap((block) => [block, '']),
     '*CUSTOMER*',
