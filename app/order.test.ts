@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bookingSettings, catalog } from './catalog.ts';
-import { buildOrderMessage, buildWhatsAppUrl, createReference, createTimeSlots, estimateTimeSlotAvailability, estimatedGuestDuration, guestTotal, isFutureAppointment, orderTotal } from './order.ts';
+import { buildOrderMessage, buildWhatsAppUrl, createReference, createTimeSlots, estimateTimeSlotAvailability, estimatedGuestDuration, getBookingValidationIssues, guestTotal, isFutureAppointment, orderTotal } from './order.ts';
 import type { BookingDraft } from './order.ts';
 
 const guest = {
@@ -26,6 +26,38 @@ test('checks that the requested time is in the future', () => {
   const now = new Date('2026-09-03T12:00:00');
   assert.equal(isFutureAppointment('2026-09-03', '12:30', now), true);
   assert.equal(isFutureAppointment('2026-09-03', '11:30', now), false);
+});
+
+test('lists every missing booking detail for the validation checklist', () => {
+  const issues = getBookingValidationIssues({
+    guests: [{ ...guest, itemId: '' }],
+    date: '',
+    time: '',
+    contactName: '',
+    contactPhone: '123',
+    notes: '',
+  });
+
+  assert.deepEqual(issues.map((issue) => issue.kind), [
+    'guest_service',
+    'date_required',
+    'time_required',
+    'contact_name',
+    'contact_phone',
+  ]);
+});
+
+test('accepts a complete future booking with no validation issues', () => {
+  const issues = getBookingValidationIssues({
+    guests: [guest],
+    date: '2026-09-04',
+    time: '14:30',
+    contactName: 'Maya Lee',
+    contactPhone: '0123456789',
+    notes: '',
+  }, new Date('2026-09-03T12:00:00'));
+
+  assert.deepEqual(issues, []);
 });
 
 test('creates inclusive 30-minute booking time choices', () => {

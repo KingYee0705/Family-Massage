@@ -16,11 +16,12 @@ import {
   estimateTimeSlotAvailability,
   estimatedGuestDuration,
   formatRinggit,
+  getBookingValidationIssues,
   getCategory,
   getMenuItem,
   guestTotal,
-  isFutureAppointment,
   orderTotal,
+  type BookingValidationIssue,
   type BookingDraft,
 } from './order';
 
@@ -58,11 +59,12 @@ export default function Home() {
   const [contactPhone, setContactPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [minimumDate] = useState(() => localDateValue(new Date()));
-  const [formError, setFormError] = useState('');
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [reference, setReference] = useState('');
   const [sendStatus, setSendStatus] = useState<'idle' | 'missing' | 'blocked' | 'copied'>('idle');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const validationSummaryRef = useRef<HTMLElement>(null);
 
   const text = ui[locale];
   const menuCategory = getCategory(menuCategoryId)!;
@@ -90,6 +92,7 @@ export default function Home() {
     contactPhone,
     notes,
   }), [guests, date, time, contactName, contactPhone, notes]);
+  const validationIssues = getBookingValidationIssues(draft);
 
   const orderMessage = useMemo(
     () => reference && date && time ? buildOrderMessage(draft, reference, locale) : '',
@@ -113,7 +116,6 @@ export default function Home() {
   function updateGuest(id: string, patch: Partial<GuestSelection>) {
     setGuests((current) => current.map((guest) => guest.id === id ? { ...guest, ...patch } : guest));
     if ('categoryId' in patch || 'itemId' in patch || 'addOnIds' in patch) setTime('');
-    setFormError('');
   }
 
   function chooseCategory(categoryId: string) {
@@ -127,7 +129,6 @@ export default function Home() {
         ? { ...guest, categoryId, itemId, addOnIds: [] }
         : guest));
       setTime('');
-      setFormError('');
     });
     requestAnimationFrame(() => document.getElementById(`service-field-${guestId}`)?.scrollIntoView({
       behavior: 'smooth',
@@ -150,7 +151,6 @@ export default function Home() {
     setGuests(next);
     setActiveGuestIndex(next.length - 1);
     setTime('');
-    setFormError('');
   }
 
   function removeGuest(index: number) {
@@ -159,19 +159,59 @@ export default function Home() {
     setGuests(next);
     setActiveGuestIndex(Math.min(index, next.length - 1));
     setTime('');
-    setFormError('');
   }
 
-  function isFormComplete() {
-    const guestsComplete = guests.every((guest) => Boolean(getMenuItem(guest.categoryId, guest.itemId)));
-    const phoneIsValid = /^\+?[0-9\s-]{8,18}$/.test(contactPhone.trim());
-    return guestsComplete && contactName.trim().length >= 2 && phoneIsValid && isFutureAppointment(date, time);
+  function hasValidationIssue(kind: BookingValidationIssue['kind'], guestIndex?: number) {
+    return validationAttempted && validationIssues.some((issue) => issue.kind === kind
+      && (issue.kind !== 'guest_service' || issue.guestIndex === guestIndex));
+  }
+
+  function validationIssueLabel(issue: BookingValidationIssue) {
+    if (issue.kind === 'guest_service') {
+      const guest = guests[issue.guestIndex];
+      return `${guest.name.trim() || `${text.guest} ${issue.guestIndex + 1}`}: ${text.missingGuestService}`;
+    }
+    if (issue.kind === 'date_required') return text.missingDate;
+    if (issue.kind === 'time_required') return text.missingTime;
+    if (issue.kind === 'past_time') return text.pastTime;
+    if (issue.kind === 'contact_name') return text.invalidContactName;
+    return text.invalidPhone;
+  }
+
+  function goToValidationIssue(issue: BookingValidationIssue) {
+    let targetId = '';
+    if (issue.kind === 'guest_service') {
+      const guest = guests[issue.guestIndex];
+      flushSync(() => setActiveGuestIndex(issue.guestIndex));
+      targetId = `service-field-${guest.id}`;
+    } else if (issue.kind === 'date_required' || issue.kind === 'past_time') {
+      targetId = 'booking-date';
+    } else if (issue.kind === 'time_required') {
+      targetId = 'booking-time-field';
+    } else if (issue.kind === 'contact_name') {
+      targetId = 'contact-name';
+    } else {
+      targetId = 'contact-phone';
+    }
+
+    requestAnimationFrame(() => {
+      const target = document.getElementById(targetId);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const focusTarget = target?.matches('input, select, button')
+        ? target
+        : target?.querySelector('input, select, button:not(:disabled)');
+      if (focusTarget instanceof HTMLElement) focusTarget.focus({ preventScroll: true });
+    });
   }
 
   function handleReview(event: FormEvent) {
     event.preventDefault();
-    if (!isFormComplete()) {
-      setFormError(date && time && !isFutureAppointment(date, time) ? text.pastTime : text.invalidForm);
+    setValidationAttempted(true);
+    if (validationIssues.length > 0) {
+      requestAnimationFrame(() => {
+        validationSummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        validationSummaryRef.current?.focus({ preventScroll: true });
+      });
       return;
     }
     setReference(createReference());
@@ -350,6 +390,26 @@ export default function Home() {
 
         <form className="booking-layout" onSubmit={handleReview} noValidate>
           <div className="booking-form">
+            {validationAttempted && validationIssues.length > 0 && (
+              <section className="validation-summary" ref={validationSummaryRef} tabIndex={-1} aria-labelledby="validation-title">
+                <div className="validation-count" aria-hidden="true">{String(validationIssues.length).padStart(2, '0')}</div>
+                <div>
+                  <h3 id="validation-title">{validationIssues.length} {text.validationRemaining}</h3>
+                  <p>{text.validationIntro}</p>
+                  <ul>
+                    {validationIssues.map((issue) => (
+                      <li key={issue.kind === 'guest_service' ? `${issue.kind}-${issue.guestIndex}` : issue.kind}>
+                        <button type="button" onClick={() => goToValidationIssue(issue)}>
+                          <span>{validationIssueLabel(issue)}</span>
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            )}
+
             <section className="form-card guest-card">
               <div className="form-card-heading">
                 <div>
@@ -414,7 +474,7 @@ export default function Home() {
                     <select
                       id={`service-${activeGuest.id}`}
                       value={activeGuest.itemId}
-                      aria-invalid={Boolean(formError && !selectedItem)}
+                      aria-invalid={hasValidationIssue('guest_service', activeGuestIndex)}
                       onChange={(event) => updateGuest(activeGuest.id, { itemId: event.target.value, addOnIds: [] })}
                       required
                     >
@@ -473,9 +533,9 @@ export default function Home() {
               <div className="field-grid">
                 <div className="field">
                   <label htmlFor="booking-date">{text.preferredDate} *</label>
-                  <input id="booking-date" type="date" min={minimumDate} value={date} onChange={(event) => { setDate(event.target.value); setTime(''); setFormError(''); }} aria-invalid={Boolean(formError && !date)} required />
+                  <input id="booking-date" type="date" min={minimumDate} value={date} onChange={(event) => { setDate(event.target.value); setTime(''); }} aria-invalid={hasValidationIssue('date_required') || hasValidationIssue('past_time')} required />
                 </div>
-                <div className="field demo-availability full-field">
+                <div className="field demo-availability full-field" id="booking-time-field">
                   <div className="availability-heading">
                     <div>
                       <label id="booking-time-label">{text.preferredTime} *</label>
@@ -490,7 +550,7 @@ export default function Home() {
                   {!date && <p className="availability-prompt">{text.selectDateFirst}</p>}
                   {date && !allGuestsConfigured && <p className="availability-prompt">{text.selectServicesFirst}</p>}
                   {date && allGuestsConfigured && (
-                    <div className={`time-slot-groups${formError && !time ? ' invalid' : ''}`} role="group" aria-labelledby="booking-time-label" aria-describedby="booking-time-help">
+                    <div className={`time-slot-groups${hasValidationIssue('time_required') || hasValidationIssue('past_time') ? ' invalid' : ''}`} role="group" aria-labelledby="booking-time-label" aria-describedby="booking-time-help">
                       {groupedTimeSlots.map((group) => (
                         <div className="time-slot-group" key={group.label}>
                           <p>{group.label}</p>
@@ -501,7 +561,7 @@ export default function Home() {
                                 className={time === slot.time ? 'selected' : ''}
                                 disabled={!slot.available}
                                 aria-pressed={time === slot.time}
-                                onClick={() => { setTime(slot.time); setFormError(''); }}
+                                onClick={() => setTime(slot.time)}
                                 key={slot.time}
                               >
                                 {slot.time}
@@ -522,11 +582,11 @@ export default function Home() {
                 </div>
                 <div className="field">
                   <label htmlFor="contact-name">{text.contactName} *</label>
-                  <input id="contact-name" autoComplete="name" value={contactName} onChange={(event) => { setContactName(event.target.value); setFormError(''); }} aria-invalid={Boolean(formError && contactName.trim().length < 2)} required />
+                  <input id="contact-name" autoComplete="name" value={contactName} onChange={(event) => setContactName(event.target.value)} aria-invalid={hasValidationIssue('contact_name')} required />
                 </div>
                 <div className="field">
                   <label htmlFor="contact-phone">{text.whatsappPhone} *</label>
-                  <input id="contact-phone" type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => { setContactPhone(event.target.value); setFormError(''); }} aria-invalid={Boolean(formError && !/^\+?[0-9\s-]{8,18}$/.test(contactPhone.trim()))} placeholder="01X-XXX XXXX" required />
+                  <input id="contact-phone" type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} aria-invalid={hasValidationIssue('contact_phone')} placeholder="01X-XXX XXXX" required />
                 </div>
                 <div className="field full-field">
                   <label htmlFor="booking-notes">{text.notes}</label>
@@ -569,7 +629,7 @@ export default function Home() {
               <span>{text.total}</span>
               <strong>{formatRinggit(total)}</strong>
             </div>
-            {formError && <p className="form-error" role="alert">{formError}</p>}
+            {validationAttempted && validationIssues.length > 0 && <p className="form-error" role="alert">{validationIssues.length} {text.validationRemaining}</p>}
             <button className="review-button" type="submit">{text.review}<span aria-hidden="true">→</span></button>
             <p className="pay-note">{text.payNote}</p>
           </aside>

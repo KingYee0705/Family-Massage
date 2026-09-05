@@ -26,6 +26,14 @@ export type DemoTimeSlot = {
   available: boolean;
 };
 
+export type BookingValidationIssue =
+  | { kind: 'guest_service'; guestIndex: number }
+  | { kind: 'date_required' }
+  | { kind: 'time_required' }
+  | { kind: 'past_time' }
+  | { kind: 'contact_name' }
+  | { kind: 'contact_phone' };
+
 export function getCategory(categoryId: string) {
   return catalog.find((category) => category.id === categoryId);
 }
@@ -64,6 +72,23 @@ export function isFutureAppointment(date: string, time: string, now = new Date()
   if (!date || !time) return false;
   const appointment = new Date(`${date}T${time}:00`);
   return !Number.isNaN(appointment.getTime()) && appointment.getTime() > now.getTime();
+}
+
+export function isValidBookingPhone(phone: string) {
+  return /^\+?[0-9\s-]{8,18}$/.test(phone.trim());
+}
+
+export function getBookingValidationIssues(draft: BookingDraft, now = new Date()): BookingValidationIssue[] {
+  const issues: BookingValidationIssue[] = [];
+  draft.guests.forEach((guest, guestIndex) => {
+    if (!getMenuItem(guest.categoryId, guest.itemId)) issues.push({ kind: 'guest_service', guestIndex });
+  });
+  if (!draft.date) issues.push({ kind: 'date_required' });
+  if (!draft.time) issues.push({ kind: 'time_required' });
+  if (draft.date && draft.time && !isFutureAppointment(draft.date, draft.time, now)) issues.push({ kind: 'past_time' });
+  if (draft.contactName.trim().length < 2) issues.push({ kind: 'contact_name' });
+  if (!isValidBookingPhone(draft.contactPhone)) issues.push({ kind: 'contact_phone' });
+  return issues;
 }
 
 export function createTimeSlots(firstTime: string, lastTime: string, intervalMinutes: number) {
