@@ -6,10 +6,11 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "demo": "node scripts/dev-demo.mjs",
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "node --test app/order.test.ts",
+    "test": "node --test app/order.test.ts scripts/demo-server.test.ts scripts/boss-finance.test.ts scripts/boss-server.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {

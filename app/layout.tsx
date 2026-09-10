@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://serene-family-massage.yeowkingyee705.chatgpt.site'),
+  metadataBase: new URL('http://localhost:3000'),
   title: 'Serene Family Massage',
   description: 'Choose a massage treatment and request your preferred appointment time.',
   openGraph: {

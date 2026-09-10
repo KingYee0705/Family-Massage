@@ -18,6 +18,36 @@ test('calculates treatments and category add-ons', () => {
   assert.equal(orderTotal([guest, { ...guest, id: 'guest-2', addOnIds: [] }]), 166);
 });
 
+test('matches every price shown on the four supplied shop menus', () => {
+  const expected: Record<string, Record<string, number>> = {
+    aromatherapy: {
+      'aroma-60': 85, 'aroma-90': 125, 'aroma-120': 150,
+      'aroma-pkg-ear': 140, 'aroma-pkg-cupping': 150, 'aroma-pkg-guasha': 150, 'aroma-pkg-foot': 125,
+      'ear-candling': 20, 'gua-sha': 35, cupping: 35, 'fire-cupping': 45, 'bleeding-cupping': 55, 'body-scrubbing': 55,
+    },
+    thai: {
+      'thai-60': 80, 'thai-90': 100, 'thai-120': 140,
+      'thai-pkg-cupping': 105, 'thai-pkg-guasha': 105, 'thai-pkg-foot': 120, 'thai-pkg-ear': 120, 'thai-pkg-scrub': 125,
+      'thai-balm': 8, 'ear-candling': 20, 'gua-sha': 35, cupping: 35, 'fire-cupping': 45, 'bleeding-cupping': 55, 'body-scrubbing': 55,
+    },
+    'full-body': {
+      'body-30': 45, 'body-60': 68, 'body-90': 100, 'body-120': 130,
+      'body-pkg-cupping': 95, 'body-pkg-guasha': 95, 'body-pkg-foot': 110, 'body-pkg-ear': 110, 'body-pkg-scrub': 115,
+      'thai-balm': 8, 'coconut-oil': 10, 'aroma-oil': 15, 'ear-candling': 20, 'gua-sha': 35, cupping: 35, 'fire-cupping': 45, 'bleeding-cupping': 55, 'body-scrubbing': 55,
+    },
+    foot: {
+      'foot-30': 38, 'foot-60': 50, 'foot-90': 75, 'foot-120': 98,
+      'foot-pkg-scrub': 65, 'foot-pkg-cupping': 80, 'foot-pkg-shoulder': 85, 'foot-pkg-body-30': 85, 'foot-pkg-body-first': 95, 'foot-pkg-body-60': 110,
+      'herbal-bag': 8, 'thai-balm': 8, 'coconut-oil': 10, 'ear-candling': 20, 'foot-scrubbing': 20, 'gua-sha': 35, cupping: 35, 'fire-cupping': 45, 'shoulder-15': 20, 'shoulder-30': 40,
+    },
+  };
+
+  for (const category of catalog) {
+    const actual = Object.fromEntries([...category.treatments, ...category.packages, ...category.addOns].map((entry) => [entry.id, entry.price]));
+    assert.deepEqual(actual, expected[category.id], category.id);
+  }
+});
+
 test('supports a six-person group', () => {
   assert.equal(orderTotal(Array.from({ length: 6 }, (_, index) => ({ ...guest, id: String(index) }))), 588);
 });
@@ -119,7 +149,7 @@ test('creates a stable-format reference', () => {
   assert.equal(createReference(new Date('2026-09-03T12:00:00'), 0), 'SFM-260903-0000');
 });
 
-test('formats a complete WhatsApp request', () => {
+test('formats a complete WhatsApp booking draft', () => {
   const draft: BookingDraft = {
     guests: [guest],
     groupTiming: 'together',
@@ -130,8 +160,8 @@ test('formats a complete WhatsApp request', () => {
     notes: 'Quiet room, please',
   };
   const message = buildOrderMessage(draft, 'SFM-260903-ABCD', 'en');
-  assert.match(message, /\*NEW BOOKING REQUEST\*/);
-  assert.match(message, /_Pending staff confirmation_\n\n\*APPOINTMENT\*\n\n/);
+  assert.match(message, /\*NEW BOOKING DRAFT\*/);
+  assert.match(message, /_Live capacity has not been checked_\n\n\*APPOINTMENT\*\n\n/);
   assert.match(message, /Date: Fri, 4 Sept 2026\nTime: 14:30\nGuests: 1\n\n/);
   assert.match(message, /\*GUEST 1 - Maya\*\n\nService/);
   assert.match(message, /Service: Full Body Massage/);
@@ -139,8 +169,8 @@ test('formats a complete WhatsApp request', () => {
   assert.match(message, /\n\nAdd-ons:\n- Coconut oil \(RM 10\)/);
   assert.match(message, /\*CUSTOMER\*\n\nName: Maya Lee[\s\S]*WhatsApp: 0123456789/);
   assert.match(message, /\*ESTIMATED TOTAL: RM 98\*/);
-  assert.match(message, /\*STAFF ACTION\*\n\nPlease reply to confirm this time or suggest the nearest available time\./);
-  assert.match(message, /requested time is not reserved until staff confirms it/);
+  assert.match(message, /\*STAFF ACTION\*\n\nSubmit this draft through the live booking system before treating it as reserved\./);
+  assert.match(message, /not reserved until the live capacity check succeeds/);
   assert.doesNotMatch(message, /📅|🕐|👥/);
   const url = buildWhatsAppUrl(message);
   assert.ok(url?.startsWith('https://wa.me/6589160743?text='));

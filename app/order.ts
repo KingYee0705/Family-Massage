@@ -31,6 +31,7 @@ export type DemoTimeSlot = {
 
 export type BookingValidationIssue =
   | { kind: 'guest_service'; guestIndex: number }
+  | { kind: 'guest_therapist'; guestIndex: number }
   | { kind: 'date_required' }
   | { kind: 'time_required' }
   | { kind: 'past_time' }
@@ -67,14 +68,14 @@ export function formatRinggit(value: number) {
   return `RM ${value}`;
 }
 
-export function buildWhatsAppUrl(message: string, phone = business.whatsappNumber) {
+export function buildWhatsAppUrl(message: string, phone: string = business.whatsappNumber) {
   if (!phone) return null;
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
 export function isFutureAppointment(date: string, time: string, now = new Date(), minimumLeadMinutes = 0) {
   if (!date || !time) return false;
-  const appointment = new Date(`${date}T${time}:00`);
+  const appointment = new Date(`${date}T${time}:00+08:00`);
   return !Number.isNaN(appointment.getTime())
     && appointment.getTime() >= now.getTime() + minimumLeadMinutes * 60_000;
 }
@@ -87,6 +88,9 @@ export function getBookingValidationIssues(draft: BookingDraft, now = new Date()
   const issues: BookingValidationIssue[] = [];
   draft.guests.forEach((guest, guestIndex) => {
     if (!getMenuItem(guest.categoryId, guest.itemId)) issues.push({ kind: 'guest_service', guestIndex });
+    if (guest.therapistChoice?.mode === 'specific' && !guest.therapistChoice.therapistId) {
+      issues.push({ kind: 'guest_therapist', guestIndex });
+    }
   });
   if (!draft.date) issues.push({ kind: 'date_required' });
   if (!draft.time) issues.push({ kind: 'time_required' });
@@ -185,8 +189,9 @@ export function createReference(now = new Date(), random = Math.random()) {
 }
 
 function displayDate(date: string) {
-  const value = new Date(`${date}T00:00:00`);
+  const value = new Date(`${date}T00:00:00+08:00`);
   return new Intl.DateTimeFormat('en-MY', {
+    timeZone: 'Asia/Kuala_Lumpur',
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -194,7 +199,13 @@ function displayDate(date: string) {
   }).format(value);
 }
 
-export function buildOrderMessage(draft: BookingDraft, reference: string, locale: Locale) {
+export function buildOrderMessage(
+  draft: BookingDraft,
+  reference: string,
+  locale: Locale,
+  status: 'request' | 'confirmed' | 'pending' | 'checked_in' | 'in_service' | 'completed' | 'cancelled' | 'no_show' | 'expired' = 'request',
+  assignments: { guestId: string; therapist: string; start: string; end: string }[] = [],
+) {
   const guestBlocks = draft.guests.flatMap((guest, index) => {
     const category = getCategory(guest.categoryId);
     const item = getMenuItem(guest.categoryId, guest.itemId);
@@ -214,15 +225,17 @@ export function buildOrderMessage(draft: BookingDraft, reference: string, locale
     if (guest.therapistPreference.trim()) {
       lines.push('', `Therapist preference: ${guest.therapistPreference.trim()}`);
     }
+    const assignment = assignments.find((entry) => entry.guestId === guest.id);
+    if (assignment) lines.push('', `Assigned: ${assignment.therapist}`, `Session time: ${assignment.start}–${assignment.end} (Malaysia time)`);
     lines.push('', `*Guest subtotal: ${formatRinggit(guestTotal(guest))}*`);
     return [lines.join('\n')];
   });
 
   const lines = [
-    '*NEW BOOKING REQUEST*',
+    status === 'request' ? '*NEW BOOKING DRAFT*' : '*DEMO TEST BOOKING — NOT A REAL APPOINTMENT*',
     business.name,
     `Ref: ${reference}`,
-    '_Pending staff confirmation_',
+    status === 'request' ? '_Live capacity has not been checked_' : status === 'pending' ? '_Legacy demo hold · awaiting staff action_' : `_Demo status: ${status.replaceAll('_', ' ')}_`,
     '',
     '*APPOINTMENT*',
     '',
@@ -242,11 +255,17 @@ export function buildOrderMessage(draft: BookingDraft, reference: string, locale
     '',
     '*STAFF ACTION*',
     '',
-    'Please reply to confirm this time or suggest the nearest available time.',
+    status !== 'request' && status !== 'pending'
+      ? 'This sample appointment is already saved in the demo dashboard.'
+      : status === 'pending'
+        ? 'Open the demo dashboard to manage this older pending hold.'
+        : 'Submit this draft through the live booking system before treating it as reserved.',
     '',
-    locale === 'zh'
-      ? '_顾客已了解所选时间在店员确认前并未保留。_'
-      : '_Customer understands the requested time is not reserved until staff confirms it._',
+    status !== 'request'
+      ? (locale === 'zh' ? '_仅供产品测试，不构成真实预约。_' : '_Product test only. No real shop appointment has been made._')
+      : locale === 'zh'
+        ? '_完成实时空位检查前，此预约草稿不会保留任何时段。_'
+        : '_This draft is not reserved until the live capacity check succeeds._',
   ];
 
   return lines.join('\n');

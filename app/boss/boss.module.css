@@ -1,0 +1,329 @@
+.page { min-height: 100vh; background: #f6f5f0; color: #233d35; --border: #dce2db; --muted-boss: #61716a; }
+.page button, .page input, .page select, .page textarea { font: inherit; }
+.page button { cursor: pointer; }
+.page button:disabled { cursor: wait; opacity: .6; }
+.page h1, .page h2, .page h3, .page h4, .page p { margin: 0; }
+.page h1, .page h2 { font-family: Georgia, 'Times New Roman', serif; }
+.page h3 { font-size: 18px; font-weight: 650; }
+.page label { display: grid; gap: 9px; font-size: 13px; font-weight: 650; }
+.page input:not([type='checkbox']), .page select, .page textarea { min-height: 46px; border: 1px solid #bac7bd; background: white; padding: 11px 13px; border-radius: 7px; color: #203d33; width: 100%; min-width: 0; }
+.page input:disabled, .page select:disabled, .page textarea:disabled { background: #edf0eb; }
+.page small { font-size: 12px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; min-height: 80px; padding: 16px clamp(20px, 4vw, 64px); gap: 22px; border-bottom: 1px solid var(--border); background: #fffef9; }
+.brand { display: flex; align-items: center; gap: 13px; font-family: Georgia, serif; font-size: 20px; }
+.brand > span { width: 36px; height: 36px; border-radius: 50%; border: 1px solid #304e42; display: grid; place-items: center; flex-shrink: 0; font-style: italic; }
+.topbarActions { display: flex; align-items: center; gap: 22px; font-size: 13px; }
+.topbarActions > a:hover { text-decoration: underline; }
+.localeSwitch { display: inline-flex; border: 1px solid var(--border); padding: 3px; border-radius: 30px; }
+.localeSwitch button { border: 0; border-radius: 24px; background: transparent; padding: 7px 10px; font-size: 12px; }
+.localeSwitch button[aria-pressed='true'] { background: #254b3e; color: white; }
+.shell { max-width: 1410px; margin: 0 auto; padding: 26px clamp(20px, 4vw, 56px) 36px; }
+.demoBanner { display: flex; align-items: center; gap: 16px; color: #6c5433; padding: 12px 16px; border: 1px solid #e7dcc5; border-radius: 9px; background: #faf3e7; font-size: 12px; }
+.demoBanner > span { font-size: 10px; letter-spacing: .11em; font-weight: 750; white-space: nowrap; }
+.demoBanner > p { line-height: 1.6; }
+.heading { display: flex; justify-content: space-between; align-items: end; gap: 32px; padding: 40px 0 28px; }
+.eyebrow { display: block; font-size: 10px; letter-spacing: .16em; font-weight: 750; text-transform: uppercase; color: #6a7c6c; margin-bottom: 12px; }
+.heading h1 { font-size: clamp(32px, 3.2vw, 39px); letter-spacing: -.04em; line-height: 1.08; }
+.heading p { color: var(--muted-boss); font-size: 15px; margin-top: 14px; line-height: 1.6; }
+.monthControl { display: grid; gap: 8px; min-width: 216px; }
+.monthControl label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.monthControl small { color: var(--muted-boss); text-align: right; }
+.primaryButton, .secondaryButton, .quietButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 11px 16px; border-radius: 7px; font-size: 13px !important; font-weight: 650 !important; line-height: 1.4; }
+.primaryButton { background: #254b3e; color: #fff; border: 1px solid #254b3e; }
+.primaryButton:hover:not(:disabled) { background: #183b2f; }
+.secondaryButton { background: #fffef9; border: 1px solid #c3cfc5; color: #254b3e; }
+.secondaryButton:hover:not(:disabled) { background: #edf1e9; }
+.quietButton { background: transparent; color: #395b4d; border: 1px solid transparent; }
+.quietButton:hover:not(:disabled) { background: #e7ede5; }
+.reportToolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; padding: 0 0 20px; }
+.reportToolbar > div:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.toolbarButtons { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.status { padding: 7px 10px; border-radius: 5px; background: #e8ede5; color: #426247; font-size: 11px; font-weight: 650; }
+.savedStatus { background: #dcece2; color: #1a563c; }
+.updated { font-size: 11px; color: var(--muted-boss); }
+.overview { display: grid; grid-template-columns: 1.25fr 1.2fr 1fr; gap: 16px; }
+.overview article { padding: 26px; border: 1px solid var(--border); border-radius: 12px; background: #fffef9; display: flex; flex-direction: column; align-items: flex-start; }
+.overview article > span { font-size: 12px; font-weight: 650; }
+.overview article > strong { margin: 21px 0 13px; font-size: clamp(24px, 2.9vw, 40px); font-weight: 550; letter-spacing: -.05em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.overview article > p { margin-top: auto; color: var(--muted-boss); font-size: 12px; line-height: 1.6; }
+.overview .heroMetric { background: #254b3e; color: #fffef7; border-color: #254b3e; }
+.overview .heroMetric > p { color: #c9dace; }
+.overview .balanceMetric { background: #e8eddf; border-color: #e0e7d7; }
+.overview .shopMetric > strong { font-size: clamp(23px, 2.2vw, 32px); margin-top: 25px; }
+.formula { color: #627063; text-align: center; font-size: 12px; line-height: 1.7; padding: 17px 10px 28px; }
+.teamSection { border: 1px solid var(--border); border-radius: 12px; background: #fffefb; overflow: hidden; }
+.sectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px; }
+.sectionHeading h2 { font-size: 29px; letter-spacing: -.035em; }
+.sectionHeading p { margin-top: 7px; color: var(--muted-boss); font-size: 12px; line-height: 1.5; }
+.sectionHeading > span { font-size: 11px; white-space: nowrap; color: var(--muted-boss); background: #edf1e8; border-radius: 20px; padding: 7px 10px; }
+.tableWrap { position: relative; overflow-x: auto; }
+.teamTable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.teamTable th, .teamTable td { padding: 18px 18px; text-align: right; font-size: 14px; white-space: nowrap; border-top: 1px solid #e7ebe4; }
+.teamTable th:first-child, .teamTable td:first-child { text-align: left; padding-left: 24px; }
+.teamTable thead th { color: #667668; font-size: 10px; font-weight: 650; background: #f6f7f1; text-transform: uppercase; letter-spacing: .045em; padding-top: 13px; padding-bottom: 13px; }
+.teamTable td:last-child { width: 36px; padding-left: 0; padding-right: 20px; }
+.teamTable tfoot { background: #f0f3eb; font-weight: 700; }
+.teamTable tfoot th, .teamTable tfoot td { padding-top: 20px; padding-bottom: 20px; }
+.teamTable tbody tr:hover { background: #f6f8f0; }
+.teamTable tbody .selectedRow { background: #eef3e8; box-shadow: inset 3px 0 0 #557a53; }
+.personButton { display: flex; text-align: left; gap: 12px; align-items: center; border: 0; padding: 0; background: transparent; min-height: 44px; }
+.personButton img { border-radius: 50%; background: #ecede6; }
+.portraitFallback { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #e9eddf; color: #526d45; font-family: Georgia, serif; font-size: 22px; flex-shrink: 0; }
+.personButton > span { display: grid; gap: 6px; }
+.personButton strong { font-size: 14px; }
+.personButton small { color: var(--muted-boss); font-size: 12px; }
+.detailsButton { border: 1px solid var(--border); border-radius: 50%; width: 32px; height: 32px; background: transparent; font-size: 17px !important; }
+.finalAmount { font-weight: 750; color: #275b3e; font-size: 15px !important; }
+.negativeAmount { font-weight: 650; color: #9c482b; }
+.negativeNote { font-size: 12px; line-height: 1.7; color: #865538; background: #faf0e5; padding: 12px 15px; border-radius: 6px; margin-top: 12px !important; }
+.therapistDetail { background: #fffefb; border: 1px solid #cbd7c7; border-radius: 12px; margin-top: 28px; padding: 28px; scroll-margin-top: 20px; }
+.detailHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding-bottom: 26px; border-bottom: 1px solid var(--border); }
+.detailPerson { display: flex; align-items: center; gap: 16px; }
+.detailPerson img { border-radius: 50%; background: #e8ede1; }
+.detailPerson h2 { font-size: 32px; }
+.detailPerson .eyebrow { margin-bottom: 6px; }
+.detailGrid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 50px; padding: 28px 0; }
+.detailGrid > div { min-width: 0; }
+.calculation { display: grid; gap: 14px; padding-top: 21px; font-variant-numeric: tabular-nums; }
+.calculation > div { display: flex; align-items: center; justify-content: space-between; gap: 22px; font-size: 14px; }
+.calculation > div > span { color: var(--muted-boss); }
+.calculation > div > strong { font-weight: 550; white-space: nowrap; }
+.calculation .calculationSubtotal { border-top: 1px solid var(--border); padding-top: 14px; }
+.calculation .calculationSubtotal span, .calculation .calculationSubtotal strong { color: #274b37; font-weight: 650; }
+.calculation .calculationTotal { padding: 18px 16px; background: #e8efdf; border-radius: 7px; margin-top: 3px; }
+.calculation .calculationTotal span { color: #234a32; font-size: 14px; font-weight: 650; }
+.calculation .calculationTotal strong { font-size: 26px; font-weight: 650; letter-spacing: -.03em; }
+.calculation .negativeTotal { background: #faf0e5; }
+.calculation .negativeTotal span, .calculation .negativeTotal strong { color: #865538; }
+.compact { padding-top: 0; }
+.editColumn { border-left: 1px solid var(--border); padding-left: 36px; }
+.deductions > p, .readOnlyNote > p { font-size: 12px; color: var(--muted-boss); line-height: 1.7; margin: 10px 0 20px; }
+.moneyFields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.moneyFields label { font-size: 14px; }
+.moneyFields input { font-size: 17px; }
+.staleForm { background: #f5f0e1; border: 1px solid #e4d8b9; border-radius: 7px; padding: 14px; margin: 16px 0; }
+.staleForm > strong { font-size: 13px; }
+.staleForm p { font-size: 12px; line-height: 1.6; margin: 9px 0 12px; }
+.page .checkbox { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; font-weight: 400; line-height: 1.6; margin: 18px 0; cursor: pointer; }
+.checkbox input { flex-shrink: 0; accent-color: #285038; width: 17px; height: 17px; margin-top: 1px; }
+.saveRow { display: flex; align-items: center; gap: 14px; }
+.saveRow > span { color: #327441; font-size: 12px; }
+.readOnlyNote { padding: 20px; background: #f0f4eb; border-radius: 8px; }
+.readOnlyNote > span { color: #476c45; font-size: 24px; display: block; padding-bottom: 12px; }
+.readOnlyNote > p { margin-bottom: 0; }
+.dailyHeading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 24px 0 18px; border-top: 1px solid var(--border); }
+.dailyHeading > span { color: var(--muted-boss); font-size: 12px; }
+.dayList { display: grid; gap: 10px; }
+.day { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.day > summary { list-style: none; display: grid; grid-template-columns: 1fr 1fr auto 15px; align-items: center; gap: 20px; padding: 17px; font-size: 14px; cursor: pointer; background: #f8f9f4; }
+.day > summary::-webkit-details-marker { display: none; }
+.day > summary > span { color: var(--muted-boss); font-size: 12px; }
+.day > summary > strong:last-of-type { font-variant-numeric: tabular-nums; }
+.day[open] > summary > span:last-child { transform: rotate(180deg); }
+.dayLines { padding: 0 20px; }
+.saleLine { display: grid; grid-template-columns: 1fr 1.1fr; gap: 36px; padding: 21px 0; border-top: 1px solid var(--border); }
+.lineReference { display: block; color: var(--muted-boss); font-size: 10px; margin-bottom: 8px; }
+.saleLine h4 { font-size: 14px; line-height: 1.5; margin: 0 0 6px; }
+.saleLine p { color: var(--muted-boss); font-size: 12px; }
+.saleAmounts { display: grid; gap: 12px; }
+.saleAmounts > div { display: flex; justify-content: space-between; gap: 18px; font-size: 14px; align-items: flex-start; }
+.saleAmounts > div > span { display: grid; gap: 4px; }
+.saleAmounts small { color: #737b66; font-size: 10px; }
+.saleAmounts strong { white-space: nowrap; font-weight: 550; font-variant-numeric: tabular-nums; }
+.saleAmounts .lineTotal { border-top: 1px dashed var(--border); padding-top: 12px; font-weight: 650; }
+.saleAmounts .lineTotal strong { font-weight: 700; }
+.monthEnd { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; margin-top: 28px; padding: 26px; border: 1px solid var(--border); border-radius: 12px; background: #eeefe6; }
+.monthEnd > div:first-child { max-width: 780px; flex: 1 1 420px; }
+.monthEnd h2 { font-size: 27px; margin-bottom: 10px; }
+.monthEnd p { color: var(--muted-boss); font-size: 12px; line-height: 1.7; }
+.monthEnd .eyebrow { font-size: 9px; }
+.monthEnd > button { flex-shrink: 0; }
+.confirmPanel { flex: 1 1 100%; background: #fffef9; padding: 22px; border: 1px solid #c7d3bd; border-radius: 8px; }
+.confirmPanel h3 { margin-bottom: 12px; }
+.confirmPanel p + p { margin-top: 8px; }
+.confirmPanel .toolbarButtons { margin-top: 18px; }
+.historyControl { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; border: 1px solid #d9e2d5; background: #f0f3ec; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
+.historyControl label { font-size: 12px; }
+.page .historyControl select { width: auto; max-width: 100%; min-height: 36px; padding: 8px 10px; font-size: 12px; }
+.historyControl > p { flex: 1 1 100%; font-size: 12px; color: var(--muted-boss); line-height: 1.6; }
+.audit { margin-top: 26px; padding: 18px 0; border-top: 1px solid var(--border); font-size: 12px; }
+.audit > summary { cursor: pointer; font-weight: 650; }
+.audit > summary span { color: var(--muted-boss); margin-left: 6px; font-size: 11px; }
+.audit ul { list-style: none; padding: 0; margin: 15px 0 0; }
+.audit li { display: grid; grid-template-columns: 150px 1fr 170px; gap: 20px; padding: 12px 0; border-bottom: 1px solid var(--border); line-height: 1.6; }
+.audit time, .audit small { color: var(--muted-boss); font-size: 11px; }
+.reportFooter { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-top: 26px; margin-top: 20px; color: #778170; font-size: 10px; border-top: 1px solid var(--border); line-height: 1.6; }
+.error, .notice { padding: 14px 16px; border-radius: 7px; margin: 0 0 18px; font-size: 13px; line-height: 1.6; }
+.error, .inlineError { background: #fbede7; color: #9c3e29; border: 1px solid #ebcdbf; }
+.inlineError { padding: 10px; border-radius: 5px; font-size: 12px; margin-bottom: 12px !important; }
+.notice { color: #276040; background: #e7f2e6; border: 1px solid #c7dec1; }
+.loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; min-height: 230px; color: var(--muted-boss); font-size: 14px; text-align: center; line-height: 1.6; }
+.emptyState { padding: 28px; border: 1px dashed #cbd5c5; border-radius: 8px; text-align: center; font-size: 13px; color: var(--muted-boss); line-height: 1.8; }
+.loginCard { max-width: 490px; margin: 55px auto; padding: 34px; background: #fffef9; border-radius: 16px; border: 1px solid var(--border); }
+.loginCard h1 { font-size: 45px; line-height: 1.1; letter-spacing: -.05em; margin-bottom: 18px; }
+.loginCard > p { color: var(--muted-boss); font-size: 14px; line-height: 1.7; margin-bottom: 24px; }
+.loginCard form { display: grid; gap: 18px; }
+.loginCard form > button { margin-top: 4px; }
+.demoCredentials { display: grid; gap: 7px; padding: 20px 0 0; margin-top: 22px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted-boss); }
+.demoCredentials strong { font-size: 11px; color: #36523f; }
+.demoCredentials code { font-size: 12px; }
+.backLink { display: block; margin-top: 22px; color: #385b45; font-size: 13px; }
+.printHeading { display: none; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; padding: 0; margin: -1px; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+@media (max-width: 1120px) {
+  .overview article { padding: 20px; }
+  .overview article > strong { font-size: 29px; }
+  .overview .shopMetric > strong { font-size: 25px; }
+  .teamTable th, .teamTable td { padding-left: 12px; padding-right: 12px; }
+  .detailGrid { gap: 26px; }
+  .editColumn { padding-left: 26px; }
+  .moneyFields { gap: 10px; }
+}
+@media (max-width: 850px) {
+  .topbarActions { gap: 12px; }
+  .brand { font-size: 17px; }
+  .topbarActions > a { display: none; }
+  .overview { grid-template-columns: 1fr 1fr; }
+  .overview .shopMetric { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 7px 20px; align-items: center; padding: 17px 20px; }
+  .overview .shopMetric strong { grid-column: 2; grid-row: 1 / 3; margin: 0; }
+  .overview .shopMetric p { grid-column: 1; grid-row: 2; }
+  .detailGrid { grid-template-columns: 1fr; gap: 24px; }
+  .editColumn { border-left: 0; border-top: 1px solid var(--border); padding: 24px 0 0; }
+  .teamTable { min-width: 765px; }
+  .audit li { grid-template-columns: 125px 1fr; gap: 12px; }
+  .audit li small { grid-column: 2; }
+}
+@media screen and (max-width: 580px) {
+  .shell { padding: 18px 16px 26px; }
+  .topbar { padding: 13px 16px; min-height: 72px; gap: 12px; }
+  .brand { font-size: 15px; gap: 8px; line-height: 1.35; }
+  .brand > span { width: 30px; height: 30px; flex-shrink: 0; }
+  .topbarActions { gap: 5px; }
+  .topbarActions .quietButton { padding: 6px; min-height: 36px; font-size: 11px !important; }
+  .localeSwitch button { padding: 6px 7px; font-size: 10px; }
+  .demoBanner { align-items: flex-start; gap: 9px; padding: 11px; font-size: 10px; }
+  .demoBanner > span { font-size: 9px; padding-top: 3px; }
+  .heading { display: block; padding: 28px 0 22px; }
+  .heading h1 { font-size: 34px; }
+  .heading p { font-size: 13px; margin-top: 10px; }
+  .monthControl { grid-template-columns: 1fr auto; margin-top: 24px; gap: 7px 12px; min-width: 0; }
+  .monthControl input { grid-column: 1 / -1; grid-row: 2; }
+  .monthControl small { grid-column: 2; grid-row: 1; font-size: 10px; }
+  .reportToolbar { padding-bottom: 16px; }
+  .reportToolbar > div:first-child { gap: 8px; }
+  .reportToolbar .toolbarButtons { width: 100%; justify-content: space-between; }
+  .updated { font-size: 10px; }
+  .status { font-size: 10px; }
+  .overview { gap: 10px; }
+  .overview article { padding: 17px 13px; border-radius: 9px; }
+  .overview article > span { font-size: 11px; line-height: 1.5; }
+  .overview article > strong { font-size: clamp(21px, 5.4vw, 30px); letter-spacing: -.05em; margin: 18px 0 12px; }
+  .overview article > p { font-size: 10px; }
+  .overview .shopMetric { padding: 15px; gap: 6px 8px; }
+  .overview .shopMetric > strong { font-size: 24px; }
+  .formula { font-size: 10px; padding: 14px 5px 21px; }
+  .sectionHeading { padding: 20px 16px; align-items: flex-start; }
+  .sectionHeading h2 { font-size: 26px; }
+  .sectionHeading p { font-size: 11px; }
+  .sectionHeading > span { font-size: 9px; padding: 6px 8px; }
+  .teamTable { min-width: 0; display: block; }
+  .teamTable thead { display: none; }
+  .teamTable tbody, .teamTable tfoot { display: block; }
+  .teamTable tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); position: relative; padding: 16px; gap: 16px; border-top: 1px solid var(--border); }
+  .teamTable th, .teamTable td { display: block; text-align: left; padding: 0; border: 0; font-size: 16px; white-space: normal; }
+  .teamTable th:first-child, .teamTable td:first-child { grid-column: 1 / -1; padding: 0 44px 0 0; }
+  .teamTable td[data-label]::before { content: attr(data-label); display: block; color: var(--muted-boss); font-size: 12px; font-weight: 400; margin-bottom: 7px; }
+  .teamTable td:last-child { position: absolute; top: 18px; right: 16px; width: 36px; padding: 0; }
+  .teamTable tfoot th, .teamTable tfoot td { padding-top: 0; padding-bottom: 0; }
+  .teamTable .finalAmount { font-size: 16px !important; }
+  .personButton { gap: 9px; }
+  .personButton strong { font-size: 14px; }
+  .personButton img { width: 34px; height: 34px; }
+  .therapistDetail { padding: 20px 16px; margin-top: 20px; }
+  .detailHeading { padding-bottom: 20px; }
+  .detailPerson img { width: 52px; height: 52px; }
+  .detailPerson h2 { font-size: 29px; }
+  .detailHeading > .toolbarButtons { width: 100%; justify-content: space-between; }
+  .calculation > div { font-size: 14px; gap: 16px; }
+  .calculation .calculationTotal strong { font-size: 24px; }
+  .calculation .calculationTotal { padding: 16px 12px; }
+  .dailyHeading { flex-wrap: wrap; gap: 8px; }
+  .dailyHeading h3 { font-size: 17px; }
+  .dailyHeading > span { font-size: 11px; }
+  .day > summary { grid-template-columns: 1fr auto 12px; gap: 8px; padding: 13px; font-size: 14px; }
+  .day > summary > span:nth-child(2) { grid-column: 1; grid-row: 2; font-size: 12px; }
+  .day > summary > strong:last-of-type { grid-column: 2; grid-row: 1 / 3; }
+  .day > summary > span:last-child { grid-column: 3; grid-row: 1 / 3; }
+  .dayLines { padding: 0 13px; }
+  .saleLine { grid-template-columns: 1fr; gap: 16px; }
+  .monthEnd { padding: 21px 16px; margin-top: 20px; }
+  .monthEnd h2 { font-size: 25px; }
+  .monthEnd p { font-size: 11px; }
+  .monthEnd > button { width: 100%; }
+  .confirmPanel { padding: 16px; }
+  .confirmPanel .primaryButton { width: 100%; }
+  .historyControl { padding: 12px; gap: 8px; }
+  .page .historyControl select { width: 100%; }
+  .reportFooter { flex-direction: column; gap: 8px; align-items: flex-start; }
+  .loginCard { margin: 30px auto; padding: 27px 22px; }
+  .loginCard h1 { font-size: 39px; }
+  .audit li { grid-template-columns: 1fr; gap: 5px; }
+  .audit li small { grid-column: 1; }
+}
+@media print {
+  @page { size: A4; margin: 14mm; }
+  .page { background: white; color: #14281f; font-size: 10pt; }
+  .shell { max-width: none; padding: 0; margin: 0; }
+  .topbar, .demoBanner, .heading, .reportToolbar, .historyControl, .monthEnd, .audit, .editColumn, .toolbarButtons, .error, .notice, .negativeNote, .detailsButton, .loading { display: none !important; }
+  .printHeading { display: block; margin: 0 0 20px; padding-bottom: 14px; border-bottom: 1px solid #8b9b8c; }
+  .printHeading p { font-size: 9pt; line-height: 1.7; }
+  .printHeading h1 { font-size: 27pt; margin: 9px 0; }
+  .printHeading h2 { font-size: 18pt; margin-top: 12px; }
+  .overview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .overview article, .overview .heroMetric, .overview .balanceMetric, .overview .shopMetric { padding: 12px; color: #14281f; background: white; border: 1px solid #c0ccbe; border-radius: 0; display: block; }
+  .overview article > strong, .overview .shopMetric > strong { display: block; font-size: 18pt; margin: 12px 0; }
+  .overview article > span { font-size: 8pt; }
+  .overview article > p, .overview .heroMetric > p { color: #405744; font-size: 8pt; }
+  .formula { font-size: 8pt; padding: 14px 0; }
+  .teamSection, .therapistDetail { border: 0; border-radius: 0; padding: 0; margin-top: 14px; }
+  .sectionHeading { padding: 16px 0; }
+  .sectionHeading h2 { font-size: 18pt; }
+  .sectionHeading p, .sectionHeading > span { display: none; }
+  .tableWrap { overflow: visible; }
+  .teamTable { width: 100%; min-width: 0; }
+  .teamTable th, .teamTable td { padding: 10px 7px; font-size: 8pt; white-space: normal; }
+  .teamTable th:first-child, .teamTable td:first-child { padding-left: 0; }
+  .teamTable td:last-child, .teamTable th:last-child { display: none; }
+  .teamTable thead th { font-size: 7pt; }
+  .teamTable tfoot { display: table-row-group; }
+  .teamTable tbody tr { break-inside: avoid; }
+  .teamTable tbody .selectedRow { box-shadow: none; background: white; }
+  .personButton { pointer-events: none; }
+  .personButton img { display: none; }
+  .personButton strong { font-size: 9pt; }
+  .personButton small { font-size: 7pt; }
+  .finalAmount, .negativeAmount { font-size: 9pt !important; color: #14281f; }
+  .printShop .therapistDetail { display: none; }
+  .printTherapist .overview, .printTherapist .teamSection, .printTherapist .detailHeading, .printTherapist .formula { display: none; }
+  .detailGrid { display: block; padding: 5px 0 16px; }
+  .detailGrid h3 { font-size: 12pt; }
+  .calculation { gap: 10px; max-width: 550px; padding-top: 16px; }
+  .calculation > div { font-size: 9pt; }
+  .calculation .calculationTotal { background: white; border: 1px solid #7c947b; padding: 12px; }
+  .calculation .calculationTotal strong { font-size: 19pt; }
+  .calculation .negativeNote { display: block !important; background: white; padding: 0; font-size: 8pt; }
+  .dailyHeading { padding: 16px 0; }
+  .dailyHeading h3 { font-size: 12pt; }
+  .dayList { display: block; }
+  .day { display: block; border: 0; border-top: 1px solid #b7c3b2; margin-bottom: 16px; overflow: visible; }
+  .day > summary { padding: 12px 0; background: white; font-size: 9pt; }
+  .day > summary > span:last-child { display: none; }
+  .day > .dayLines { display: block !important; }
+  .dayLines { padding: 0; }
+  .saleLine { display: grid; grid-template-columns: 1fr 1.1fr; gap: 25px; padding: 12px 0; break-inside: avoid; }
+  .saleLine h4 { font-size: 9pt; }
+  .saleLine p, .saleAmounts > div { font-size: 8pt; }
+  .lineReference, .saleAmounts small { font-size: 7pt; }
+  .reportFooter { font-size: 7pt; padding-top: 14px; margin-top: 16px; }
+}
