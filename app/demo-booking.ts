@@ -80,13 +80,14 @@ export type DemoBooking = {
   status: DemoBookingStatus;
   createdAt: string;
   holdExpiresAt: string | null;
+  completedAt?: string;
   receiptToken?: string;
   priceSnapshots?: { guestId: string; category: LocalizedText; item: LocalizedText; itemPrice: number; addOns: { id: string; name: LocalizedText; price: number }[]; total: number }[];
   therapistSnapshots?: { guestId: string; therapistId: string; staffNumber: string; name: LocalizedText }[];
   addOnSales?: DemoAddOnSale[];
 };
 
-export type DemoOccupancy = Pick<DemoBooking, 'date' | 'status' | 'holdExpiresAt' | 'assignments'>;
+export type DemoOccupancy = Pick<DemoBooking, 'date' | 'status' | 'holdExpiresAt' | 'assignments' | 'completedAt'>;
 export type DemoStaffRole = 'owner' | 'receptionist' | 'therapist';
 export type DemoStaffUser = { id: string; email: string; name: string; role: DemoStaffRole; therapistId?: string };
 export type DemoAuditEntry = { id: string; at: string; actor: string; action: string; bookingId?: string };
@@ -131,6 +132,18 @@ export type DemoState = {
   audit: DemoAuditEntry[];
 };
 export type DemoPublicState = Omit<DemoState, 'bookings' | 'audit'> & { bookings: DemoOccupancy[] };
+// Operational responses can deliberately omit money; absence must not be
+// interpreted as zero or reconstructed from today's public catalogue.
+export type StaffBooking = Omit<DemoBooking, 'total' | 'priceSnapshots' | 'addOnSales'> & {
+  financialsHidden?: true;
+  total?: number;
+  priceSnapshots?: (Omit<NonNullable<DemoBooking['priceSnapshots']>[number], 'itemPrice' | 'total' | 'addOns'> & {
+    itemPrice?: number; total?: number; addOns: { id: string; name: LocalizedText; price?: number }[];
+  })[];
+  addOnSales?: (Omit<DemoAddOnSale, 'price'> & { price?: number })[];
+};
+export type StaffState = Omit<DemoState, 'bookings'> & { bookings: StaffBooking[] };
+export type StaffReservationResult = { ok: true; booking: StaffBooking } | Extract<DemoReservationResult, { ok: false }>;
 
 export type DemoScheduleResult = {
   assignments: DemoAssignment[];
@@ -451,11 +464,33 @@ function availableResourceIds(
   return selected;
 }
 
-function blockingAssignments(bookings: DemoOccupancy[], date: string, now: Date) {
+// Absolute shop-time intervals also cover unresolved work from previous days.
+// Never infer completion from the clock or alter an existing assignment.
+export function occupancyWindow(booking: DemoOccupancy, assignment: DemoAssignment, now = new Date()) {
+  const at = (time: string) => new Date(`${booking.date}T00:00:00+08:00`).getTime() + timeToMinutes(time) * 60_000;
+  const start = at(assignment.start);
+  const end = at(assignment.end);
+  const overdue = booking.status === 'in_service' && now.getTime() >= end;
+  const completion = booking.completedAt ? Date.parse(booking.completedAt) : NaN;
+  const completed = booking.status === 'completed' && Number.isFinite(completion);
+  const cleanupEnd = overdue ? Infinity : completed ? completion + bookingSettings.turnaroundMinutes * 60_000 : at(assignment.cleanupEnd);
+  return { start, end: completed ? completion : end, cleanupEnd, overdue };
+}
+
+export function blockingAssignments(bookings: DemoOccupancy[], date: string, now: Date) {
+  const dayStart = new Date(`${date}T00:00:00+08:00`).getTime();
+  const dayEnd = dayStart + 86_400_000;
+  const time = (at: number) => minutesToTime(Math.max(0, Math.min(1440, (at - dayStart) / 60_000)));
   return bookings.flatMap((booking) => {
-    if (booking.date !== date || !BLOCKING_STATUSES.has(booking.status)) return [];
+    if (!BLOCKING_STATUSES.has(booking.status)) return [];
     if (booking.status === 'pending' && booking.holdExpiresAt && new Date(booking.holdExpiresAt) <= now) return [];
-    return booking.assignments;
+    return booking.assignments.flatMap((assignment) => {
+      const window = occupancyWindow(booking, assignment, now);
+      if (window.start >= dayEnd || window.cleanupEnd <= dayStart) return [];
+      // Round release up so a fractional minute never releases resources early.
+      const release = Number.isFinite(window.cleanupEnd) ? Math.ceil(window.cleanupEnd / 60_000) * 60_000 : Infinity;
+      return [{ ...assignment, start: time(window.start), end: time(window.end), cleanupEnd: time(release) }];
+    });
   });
 }
 
@@ -735,18 +770,18 @@ async function demoRequest<T>(path: string, method = 'GET', body?: unknown): Pro
 }
 
 export const loadDemoState = () => demoRequest<DemoPublicState>('/public-state');
-export const loadStaffDemoState = () => demoRequest<DemoState>('/staff/state');
+export const loadStaffDemoState = () => demoRequest<StaffState>('/staff/state');
 export const loadTodayDemoEarnings = () => demoRequest<DemoDailyEarnings>('/staff/today-earnings');
 export async function getDemoSession() { return (await demoRequest<{ user: DemoStaffUser | null }>('/session')).user; }
 export async function loginDemoStaff(email: string, password: string) { return (await demoRequest<{ user: DemoStaffUser }>('/auth', 'POST', { email, password })).user; }
 export async function logoutDemoStaff() { await demoRequest('/auth', 'DELETE'); }
 export const reserveDemoBooking = (input: DemoReservationInput) => demoRequest<DemoReservationResult>('/bookings', 'POST', { ...input, idempotencyKey: input.idempotencyKey ?? crypto.randomUUID() });
 export const readDemoBooking = (id: string, receiptToken: string) => demoRequest<DemoBooking>(`/bookings/${encodeURIComponent(id)}?token=${encodeURIComponent(receiptToken)}`);
-export const reserveStaffDemoBooking = (input: DemoReservationInput) => demoRequest<DemoReservationResult>('/staff/bookings', 'POST', { ...input, idempotencyKey: input.idempotencyKey ?? crypto.randomUUID() });
-export async function updateDemoBookingStatus(id: string, status: DemoBookingStatus) { return (await demoRequest<{ ok: true; booking: DemoBooking }>(`/staff/bookings/${encodeURIComponent(id)}`, 'PATCH', { action: 'status', status })).booking; }
-export const rescheduleDemoBooking = (id: string, date: string, time: string, groupTiming?: 'together' | 'flexible') => demoRequest<DemoReservationResult>(`/staff/bookings/${encodeURIComponent(id)}`, 'PATCH', { action: 'reschedule', date, time, groupTiming });
-export const reassignDemoBooking = (id: string, guestId: string, therapistId: string) => demoRequest<DemoReservationResult>(`/staff/bookings/${encodeURIComponent(id)}`, 'PATCH', { action: 'reassign', guestId, therapistId });
-export const addDemoBookingAddOns = (id: string, guestId: string, addOnIds: string[], source: DemoAddOnSale['source']) => demoRequest<DemoReservationResult>(`/staff/bookings/${encodeURIComponent(id)}`, 'PATCH', { action: 'add_addons', guestId, addOnIds, source });
+export const reserveStaffDemoBooking = (input: DemoReservationInput) => demoRequest<StaffReservationResult>('/staff/bookings', 'POST', { ...input, idempotencyKey: input.idempotencyKey ?? crypto.randomUUID() });
+export async function updateDemoBookingStatus(id: string, status: DemoBookingStatus) { return (await demoRequest<{ ok: true; booking: StaffBooking }>(`/staff/bookings/${encodeURIComponent(id)}`, 'PATCH', { action: 'status', status })).booking; }
+export const rescheduleDemoBooking = (id: string, date: string, time: string, groupTiming?: 'together' | 'flexible') => demoRequest<StaffReservationResult>(`/staff/bookings/${encodeURIComponent(id)}`, 'PATCH', { action: 'reschedule', date, time, groupTiming });
+export const reassignDemoBooking = (id: string, guestId: string, therapistId: string) => demoRequest<StaffReservationResult>(`/staff/bookings/${encodeURIComponent(id)}`, 'PATCH', { action: 'reassign', guestId, therapistId });
+export const addDemoBookingAddOns = (id: string, guestId: string, addOnIds: string[], source: DemoAddOnSale['source']) => demoRequest<StaffReservationResult>(`/staff/bookings/${encodeURIComponent(id)}`, 'PATCH', { action: 'add_addons', guestId, addOnIds, source });
 export async function updateDemoTherapist(profile: TherapistProfile) { return (await demoRequest<{ profile: TherapistProfile }>(`/staff/therapists/${encodeURIComponent(profile.id)}`, 'PATCH', profile)).profile; }
 export const resetDemoState = () => demoRequest<DemoState>('/staff/reset', 'POST');
 

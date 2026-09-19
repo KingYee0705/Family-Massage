@@ -15,6 +15,8 @@ import {
 } from '../app/demo-booking.ts';
 import { calculateBossMonth, initialBossFinance, type BossFinanceState } from './boss-finance.ts';
 import type { BossMonthReport } from '../app/boss-types.ts';
+import { staffBooking, staffResult, staffState } from './staff-access.ts';
+import { createSupportService, supportHandler } from './support-service.ts';
 
 // Deliberately local-only: no production deployment, database, or live booking mode.
 const SESSION_HOURS = 8;
@@ -122,7 +124,8 @@ function customerBooking(booking: DemoBooking): DemoBooking {
   };
 }
 
-export function createDemoServer(options: { dbPath?: string; now?: () => Date } = {}) {
+export function createDemoServer(options: { dbPath?: string; now?: () => Date; supportService?: ReturnType<typeof createSupportService> } = {}) {
+  const handleSupport = supportHandler(options.supportService);
   const dbPath = options.dbPath ?? resolve('.demo-data/demo.sqlite');
   if (dbPath !== ':memory:') mkdirSync(dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
@@ -299,6 +302,7 @@ export function createDemoServer(options: { dbPath?: string; now?: () => Date } 
         const status = body.status as DemoBookingStatus;
         if (!TRANSITIONS[booking.status].includes(status)) throw new HttpError(409, 'That status change is no longer available. Refresh the booking.');
         booking.status = status; booking.holdExpiresAt = null;
+        if (status === 'completed') booking.completedAt = now().toISOString();
       } else if (body.action === 'reschedule') {
         if (!['pending', 'confirmed'].includes(booking.status)) throw new HttpError(409, 'Only pending or confirmed bookings can be rescheduled.');
         const input = validateInput({ ...booking, date: body.date, time: body.time, groupTiming: body.groupTiming ?? booking.groupTiming }, state, now(), true);
@@ -416,6 +420,7 @@ export function createDemoServer(options: { dbPath?: string; now?: () => Date } 
   function send(res: ServerResponse, status: number, body: unknown) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(JSON.stringify(body)); }
   const server = createServer(async (req, res) => {
     try {
+      if (await handleSupport(req, res)) return;
       const path = new URL(req.url ?? '/', 'http://localhost').pathname;
       const method = req.method ?? 'GET';
       if (!path.startsWith('/api/demo/')) throw new HttpError(404, 'Not found.');
@@ -428,7 +433,7 @@ export function createDemoServer(options: { dbPath?: string; now?: () => Date } 
         }
       }
       if (path === '/api/demo/public-state' && method === 'GET') {
-        return send(res, 200, transaction((state) => ({ version: state.version, seedDate: state.seedDate, therapists: state.therapists, bookings: state.bookings.filter((b) => [...ACTIVE, 'completed'].includes(b.status)).map(({ date, status, holdExpiresAt, assignments }) => ({ date, status, holdExpiresAt, assignments: assignments.map(({ therapistId, start, end, cleanupEnd, resourceIds }, index) => ({ guestId: `occupied-${index}`, therapistId, start, end, cleanupEnd, resourceIds })) })) })));
+        return send(res, 200, transaction((state) => ({ version: state.version, seedDate: state.seedDate, therapists: state.therapists, bookings: state.bookings.filter((b) => [...ACTIVE, 'completed'].includes(b.status)).map(({ date, status, holdExpiresAt, completedAt, assignments }) => ({ date, status, holdExpiresAt, completedAt, assignments: assignments.map(({ therapistId, start, end, cleanupEnd, resourceIds }, index) => ({ guestId: `occupied-${index}`, therapistId, start, end, cleanupEnd, resourceIds })) })) })));
       }
       if (path === '/api/demo/session' && method === 'GET') return send(res, 200, { user: userFor(req) });
       if (path === '/api/demo/auth' && method === 'POST') {
@@ -452,14 +457,15 @@ export function createDemoServer(options: { dbPath?: string; now?: () => Date } 
         res.setHeader('Set-Cookie', `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/api/demo; Max-Age=0`);
         return send(res, 200, { ok: true });
       }
-      if (path === '/api/demo/bookings' && method === 'POST') { const result = createBooking(await readBody(req), null); return send(res, result.ok ? 201 : 409, result.ok ? { ...result, booking: customerBooking(result.booking) } : result); }
+      if (path === '/api/demo/bookings' && method === 'POST') { const result = createBooking(await readBody(req), null); const viewer = userFor(req); return send(res, result.ok ? 201 : 409, viewer?.role === 'receptionist' ? staffResult(result, viewer.role, now()) : result.ok ? { ...result, booking: customerBooking(result.booking) } : result); }
       const receiptMatch = /^\/api\/demo\/bookings\/([^/]+)$/.exec(path);
       if (receiptMatch && method === 'GET') {
         const token = new URL(req.url ?? '/', 'http://localhost').searchParams.get('token') ?? '';
         const receipt = transaction((state) => {
           const booking = state.bookings.find((b) => b.id === decodeURIComponent(receiptMatch[1]));
           if (!booking?.receiptToken || !timingSafeEqual(Buffer.from(hash(booking.receiptToken)), Buffer.from(hash(token)))) throw new HttpError(404, 'Booking receipt not found.');
-          return customerBooking(booking);
+          const viewer = userFor(req);
+          return viewer?.role === 'receptionist' ? staffBooking(booking, viewer.role, now()) : customerBooking(booking);
         });
         return send(res, 200, receipt);
       }
@@ -486,16 +492,16 @@ export function createDemoServer(options: { dbPath?: string; now?: () => Date } 
       }
       if (path === '/api/demo/staff/state' && method === 'GET') {
         if (user.role === 'therapist') throw new HttpError(403, 'Therapists can only view their own work and earnings for today.');
-        return send(res, 200, transaction((state) => state));
+        return send(res, 200, transaction((state) => staffState(state, user.role, now())));
       }
       if (path === '/api/demo/staff/bookings' && method === 'POST') {
         if (user.role === 'therapist') throw new HttpError(403, 'Therapists cannot create bookings.');
-        const result = createBooking(await readBody(req), user); return send(res, result.ok ? 201 : 409, result);
+        const result = createBooking(await readBody(req), user); return send(res, result.ok ? 201 : 409, staffResult(result, user.role, now()));
       }
       const bookingMatch = /^\/api\/demo\/staff\/bookings\/([^/]+)$/.exec(path);
       if (bookingMatch && method === 'PATCH') {
         if (user.role === 'therapist') throw new HttpError(403, 'Therapists cannot change bookings.');
-        const result = updateBooking(decodeURIComponent(bookingMatch[1]), await readBody(req), user); return send(res, result.ok ? 200 : 409, result);
+        const result = updateBooking(decodeURIComponent(bookingMatch[1]), await readBody(req), user); return send(res, result.ok ? 200 : 409, staffResult(result, user.role, now()));
       }
       const therapistMatch = /^\/api\/demo\/staff\/therapists\/([^/]+)$/.exec(path);
       if (therapistMatch && method === 'PATCH') {
@@ -516,6 +522,9 @@ export function createDemoServer(options: { dbPath?: string; now?: () => Date } 
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // Loaded only by the API process, never by Vite/the frontend launcher.
+  try { process.loadEnvFile(resolve('.env.support.local')); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') console.error('Could not load local support configuration.'); }
   const port = Number(process.env.DEMO_API_PORT ?? 4311);
   const server = createDemoServer();
   server.listen(port, '127.0.0.1', () => console.log(`Local booking database ready at http://127.0.0.1:${port} (sample bookings only)`));

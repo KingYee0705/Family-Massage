@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bookingSettings, catalog } from './catalog.ts';
-import { buildOrderMessage, buildWhatsAppUrl, createReference, createTimeSlots, estimateTimeSlotAvailability, estimatedGuestDuration, getBookingValidationIssues, guestTotal, isFutureAppointment, orderTotal } from './order.ts';
+import { buildOrderMessage, buildWhatsAppUrl, createReference, createTimeSlots, estimateTimeSlotAvailability, estimatedGuestDuration, getBookingValidationIssues, guestTotal, isFutureAppointment, isValidBookingPhone, orderTotal } from './order.ts';
 import type { BookingDraft } from './order.ts';
 
 const guest = {
@@ -12,6 +12,15 @@ const guest = {
   addOnIds: ['coconut-oil', 'ear-candling'],
   therapistPreference: 'Amy',
 };
+
+test('phone validation counts digits and accepts local and formatted international numbers', () => {
+  for (const phone of ['61234567', '012-345 6789', '+65 6123 4567', '+60 (12) 345-6789', '+1 (202) 555-0100', '+123456789012345', '  +65 6123 4567  ']) {
+    assert.equal(isValidBookingPhone(phone), true, 'valid phone format should be accepted');
+  }
+  for (const phone of ['', '        ', '--------', '() - () -', '+--- ---', '1234567', '12-34 567', '+1234567890123456', '+0123456789', '1234+5678', '++12345678', '12345678 ext 1', '1234\n5678']) {
+    assert.equal(isValidBookingPhone(phone), false, 'invalid phone format should be rejected');
+  }
+});
 
 test('calculates treatments and category add-ons', () => {
   assert.equal(guestTotal(guest), 98);

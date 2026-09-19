@@ -81,7 +81,13 @@ export function isFutureAppointment(date: string, time: string, now = new Date()
 }
 
 export function isValidBookingPhone(phone: string) {
-  return /^\+?[0-9\s-]{8,18}$/.test(phone.trim());
+  const value = phone.trim();
+  // Count digits, not formatting characters. Keep local numbers and ordinary
+  // international formatting without treating this as contact verification.
+  if (!/^\+?[0-9 ()-]+$/.test(value)) return false;
+  const digits = value.replace(/[^0-9]/g, '');
+  return digits.length >= 8 && digits.length <= 15
+    && (!value.startsWith('+') || digits[0] !== '0');
 }
 
 export function getBookingValidationIssues(draft: BookingDraft, now = new Date()): BookingValidationIssue[] {

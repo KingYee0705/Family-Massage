@@ -7,6 +7,8 @@ import type { AddressInfo } from 'node:net';
 import { createDemoServer } from './demo-server.ts';
 import { calculateDemoDailyEarnings, expirePending, findDemoSchedule, initialDemoState, isTherapistCompatible, sampleTherapists, type DemoDailyEarnings, type DemoReservationInput, type DemoState, type DemoBooking, type DemoStaffUser } from '../app/demo-booking.ts';
 import { catalog, type GuestSelection } from '../app/catalog.ts';
+import { calculateDemoAvailability, type DemoPublicState, type StaffState } from '../app/demo-booking.ts';
+import { overrunWarnings } from '../app/room-schedule.ts';
 
 const NOW = new Date('2026-09-05T02:00:00Z');
 const guest = (overrides: Partial<GuestSelection> = {}): GuestSelection => ({ id: 'guest-1', name: 'Demo guest', categoryId: 'full-body', itemId: 'body-120', addOnIds: [], therapistPreference: '', therapistChoice: { mode: 'none', requirement: 'preferred', gender: '', therapistId: '' }, ...overrides });
@@ -26,6 +28,133 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }, options:
   async function login(role = 'owner') { return request('/auth', 'POST', { email: `${role}@serene.demo`, password: 'SereneDemo!' }); }
   return { request, login, base };
 }
+
+test('overruns block every booking channel and group atomically; completion reserves five actual cleaning minutes', async (t) => {
+  let clock = new Date(NOW);
+  const { request, login } = await fixture(t, { now: () => clock });
+  let owner = await login();
+  const first = (await request('/bookings', 'POST', input({ guests: [specific()] }))).data.booking;
+  const later = (await request('/bookings', 'POST', input({ time: '17:00', guests: [specific(undefined, { itemId: 'body-60' })] }))).data.booking;
+  assert.ok(first.id && later.id);
+  clock = new Date('2026-09-07T06:00:00Z');
+  owner = await login();
+  for (const status of ['checked_in', 'in_service']) assert.equal((await request(`/staff/bookings/${first.id}`, 'PATCH', { action: 'status', status }, owner.cookie)).status, 200);
+  clock = new Date('2026-09-07T08:10:00Z');
+  const staff = await login('receptionist');
+  const publicState = (await request<DemoPublicState>('/public-state')).data;
+  const availability = calculateDemoAvailability({ date: '2026-09-07', guests: [specific()], groupTiming: 'together', therapists: publicState.therapists, bookings: publicState.bookings, now: clock });
+  assert.equal(availability.find((slot) => slot.time === '20:00')?.available, false);
+  for (const [path, cookie] of [['/bookings', ''], ['/staff/bookings', staff.cookie]]) {
+    assert.equal((await request(path, 'POST', input({ time: '20:00', guests: [specific()] }), cookie)).status, 409);
+    assert.equal((await request(path, 'POST', input({ time: '20:00', guests: [specific(), specific('therapist-04', { id: 'second' })] }), cookie)).status, 409);
+  }
+  const state = (await request('/staff/state', 'GET', undefined, owner.cookie)).data;
+  assert.deepEqual(state.bookings.find((booking) => booking.id === later.id), later, 'Never modify the pre-existing confirmed appointment');
+  assert.equal(state.bookings.length, publicState.bookings.length);
+  assert.ok(overrunWarnings(state, clock).find((warning) => warning.id === first.id)?.conflicts.some((conflict) => conflict.id === later.id));
+  // Reassignment and rescheduling also use the authoritative occupancy policy.
+  assert.equal((await request(`/staff/bookings/${later.id}`, 'PATCH', { action: 'reschedule', date: '2026-09-07', time: '20:00' }, staff.cookie)).status, 409);
+  clock = new Date('2026-09-07T08:12:30Z');
+  const completed = await request(`/staff/bookings/${first.id}`, 'PATCH', { action: 'status', status: 'completed' }, staff.cookie);
+  assert.equal(completed.status, 200);
+  assert.equal(completed.data.booking.completedAt, clock.toISOString());
+  assert.deepEqual(completed.data.booking.assignments, first.assignments, 'Stored schedule is preserved');
+  const cleanedState = (await request<DemoPublicState>('/public-state')).data;
+  const args = { date: '2026-09-07', guests: [specific(undefined, { itemId: 'body-30' })], groupTiming: 'together' as const, therapists: cleanedState.therapists, bookings: cleanedState.bookings, now: clock };
+  assert.equal(findDemoSchedule({ ...args, time: '16:15' }), null);
+  assert.ok(findDemoSchedule({ ...args, time: '16:20' }));
+  assert.equal((await request('/staff/bookings', 'POST', input({ time: '16:15', guests: args.guests }), staff.cookie)).status, 409);
+  assert.equal((await request('/staff/bookings', 'POST', input({ time: '16:20', guests: args.guests }), staff.cookie)).status, 201);
+  assert.deepEqual((await request('/staff/state', 'GET', undefined, owner.cookie)).data.bookings.find((booking) => booking.id === later.id), later);
+});
+
+test('unresolved overnight treatment stays blocked until manual completion and cleaning, without changing status automatically', async (t) => {
+  let clock = new Date(NOW);
+  const { request, login } = await fixture(t, { now: () => clock });
+  let owner = await login();
+  const first = (await request('/bookings', 'POST', input({ guests: [specific()] }))).data.booking;
+  for (const status of ['checked_in', 'in_service']) await request(`/staff/bookings/${first.id}`, 'PATCH', { action: 'status', status }, owner.cookie);
+  for (const at of ['2026-09-07T16:01:00Z', '2026-09-08T03:00:00Z']) {
+    clock = new Date(at); owner = await login();
+    const state = (await request('/staff/state', 'GET', undefined, owner.cookie)).data;
+    assert.equal(state.bookings.find((booking) => booking.id === first.id)?.status, 'in_service');
+    assert.equal(overrunWarnings(state, clock).find((warning) => warning.id === first.id)?.overnight, true);
+    assert.equal((await request('/bookings', 'POST', input({ date: '2026-09-08', guests: [specific()] }))).status, 409);
+  }
+  assert.equal((await request(`/staff/bookings/${first.id}`, 'PATCH', { action: 'status', status: 'completed' }, owner.cookie)).status, 200);
+  assert.equal((await request('/staff/bookings', 'POST', input({ date: '2026-09-08', time: '11:00', guests: [specific()] }), owner.cookie)).status, 409);
+  assert.equal((await request('/staff/bookings', 'POST', input({ date: '2026-09-08', time: '11:05', guests: [specific()] }), owner.cookie)).status, 201);
+});
+
+test('receptionist historical state, mutation, receipt and idempotent responses omit money; owner and today access are preserved', async (t) => {
+  let clock = new Date('2026-09-07T02:00:00Z');
+  const { request, login } = await fixture(t, { now: () => clock });
+  let owner = await login(); let receptionist = await login('receptionist');
+  const body = input({ guests: [specific()] });
+  const created = await request('/staff/bookings', 'POST', body, receptionist.cookie);
+  assert.equal(created.status, 201);
+  const id = created.data.booking.id;
+  assert.equal(typeof created.data.booking.total, 'number');
+  assert.equal('receiptToken' in created.data.booking, false);
+  for (const status of ['checked_in', 'in_service']) await request(`/staff/bookings/${id}`, 'PATCH', { action: 'status', status }, receptionist.cookie);
+  const added = await request(`/staff/bookings/${id}`, 'PATCH', { action: 'add_addons', guestId: 'guest-1', addOnIds: ['thai-balm'], source: 'counter' }, receptionist.cookie);
+  assert.equal(added.status, 200);
+  const original = (await request('/staff/state', 'GET', undefined, owner.cookie)).data.bookings.find((booking) => booking.id === id)!;
+  assert.ok(original.addOnSales?.length);
+  function assertNoMoney(value: unknown) {
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      assert.ok(!['total', 'itemPrice', 'price', 'gross', 'commission', 'receiptToken'].includes(key), `Restricted field: ${key}`);
+      assertNoMoney(child);
+    }
+  }
+  clock = new Date('2026-09-08T02:00:00Z');
+  owner = await login(); receptionist = await login('receptionist');
+  const history = await request<StaffState>('/staff/state', 'GET', undefined, receptionist.cookie);
+  const historical = history.data.bookings.find((booking) => booking.id === id)!;
+  assertNoMoney(historical);
+  assert.equal(historical.financialsHidden, true);
+  assert.deepEqual(historical.assignments, original.assignments);
+  assert.deepEqual(historical.guests, original.guests);
+  assert.equal(historical.priceSnapshots?.[0].item.en, original.priceSnapshots?.[0].item.en);
+  assert.equal(historical.addOnSales?.[0].name.en, original.addOnSales?.[0].name.en);
+  assert.ok(history.data.audit.every((entry) => !entry.action.includes('RM')));
+  const retry = await request('/staff/bookings', 'POST', body, receptionist.cookie);
+  assert.equal(retry.status, 201); assert.equal(retry.data.booking.id, id); assertNoMoney(retry.data.booking);
+  const receipt = await request(`/bookings/${id}?token=${encodeURIComponent(original.receiptToken!)}`, 'GET', undefined, receptionist.cookie);
+  assert.equal(receipt.status, 200); assertNoMoney(receipt.data);
+  const completed = await request(`/staff/bookings/${id}`, 'PATCH', { action: 'status', status: 'completed' }, receptionist.cookie);
+  assert.equal(completed.status, 200); assertNoMoney(completed.data.booking);
+  const ownerRecord = (await request('/staff/state', 'GET', undefined, owner.cookie)).data.bookings.find((booking) => booking.id === id)!;
+  assert.equal(ownerRecord.total, original.total);
+  assert.deepEqual(ownerRecord.priceSnapshots, original.priceSnapshots);
+  assert.deepEqual(ownerRecord.addOnSales, original.addOnSales);
+  const today = await request('/staff/bookings', 'POST', input({ date: '2026-09-08', time: '18:00', guests: [specific()] }), receptionist.cookie);
+  assert.equal(today.status, 201); assert.equal(typeof today.data.booking.total, 'number');
+  assert.equal((await request('/boss/month', 'GET', undefined, receptionist.cookie)).status, 403);
+});
+
+test('public and staff booking endpoints share digit-based phone validation', async (t) => {
+  const { request, login } = await fixture(t);
+  const staff = await login('receptionist');
+  const before = (await request('/staff/state', 'GET', undefined, staff.cookie)).data.bookings.length;
+  let accepted = 0;
+  for (const path of ['/bookings', '/staff/bookings']) {
+    const cookie = path.startsWith('/staff') ? staff.cookie : '';
+    for (const contactPhone of ['--------', '12-34 567', '+--- ---', '+1234567890123456']) {
+      const result = await request(path, 'POST', input({ contactPhone }), cookie);
+      assert.equal(result.status, 400, 'invalid phone must not create a booking');
+    }
+    for (const contactPhone of ['61234567', '012-345 6789', '+60 (12) 345-6789', '+1 (202) 555-0100']) {
+      const date = `2026-09-${String(10 + accepted).padStart(2, '0')}`;
+      const result = await request(path, 'POST', input({ date, contactPhone }), cookie);
+      assert.equal(result.status, 201, 'valid phone should be accepted by either booking endpoint');
+      accepted += 1;
+    }
+  }
+  const after = (await request('/staff/state', 'GET', undefined, staff.cookie)).data.bookings.length;
+  assert.equal(after, before + accepted);
+});
 
 test('full duration and cleaning block a therapist; a different qualified therapist remains bookable', () => {
   const state = initialDemoState(NOW);
@@ -346,7 +475,10 @@ test('counter add-ons extend only the selected guest and preserve locked prices 
   const publicState = JSON.stringify((await request('/public-state')).data);
   assert.equal(publicState.includes('addOnSales'), false);
   assert.equal(publicState.includes(sale.id), false);
-  const receipt = await request<DemoBooking>(`/bookings/${after.id}?token=${after.receiptToken}`);
+  assert.equal(after.receiptToken, undefined, 'Receptionist responses never grant receipt capabilities');
+  const owner = await login();
+  const ownerBooking = (await request('/staff/state', 'GET', undefined, owner.cookie)).data.bookings.find((booking) => booking.id === after.id)!;
+  const receipt = await request<DemoBooking>(`/bookings/${after.id}?token=${ownerBooking.receiptToken}`);
   assert.equal(receipt.status, 200);
   assert.equal(receipt.data.total, 144);
   assert.equal(receipt.data.addOnSales![0].recordedBy, undefined);
@@ -367,6 +499,10 @@ test('in-service add-ons handle a past start and overrun, then count once in com
   for (const status of ['checked_in', 'in_service']) {
     assert.equal((await request(path, 'PATCH', { action: 'status', status }, owner.cookie)).status, 200);
   }
+  // Resolve the earlier sample treatment explicitly; it no longer releases
+  // its therapist/chair automatically just because the planned end passed.
+  clock = new Date('2026-09-05T07:00:00Z');
+  assert.equal((await request('/staff/bookings/a103', 'PATCH', { action: 'status', status: 'completed' }, owner.cookie)).status, 200);
   clock = new Date('2026-09-05T08:15:00Z'); // The appointment began 15 minutes ago in Malaysia.
   const extra = { action: 'add_addons', guestId: 'guest-1', addOnIds: ['thai-balm'], source: 'during_service' };
   const added = await request(path, 'PATCH', extra, owner.cookie);
@@ -388,13 +524,14 @@ test('in-service add-ons handle a past start and overrun, then count once in com
     ...created.data.booking.assignments[0], end: '17:30', cleanupEnd: '17:35',
   });
   const beforeCompletion = await request<DemoDailyEarnings>('/staff/today-earnings', 'GET', undefined, therapist.cookie);
-  assert.equal(beforeCompletion.data.gross, 0);
+  assert.equal(beforeCompletion.data.gross, 50); // Earlier sample treatment only.
   assert.equal((await request(path, 'PATCH', { action: 'status', status: 'completed' }, owner.cookie)).status, 200);
   const earnings = await request<DemoDailyEarnings>('/staff/today-earnings', 'GET', undefined, therapist.cookie);
-  assert.equal(earnings.data.gross, 66);
-  assert.equal(earnings.data.completedTreatments, 1);
-  assert.equal(earnings.data.therapists[0].lines[0].gross, 66);
-  assert.equal(earnings.data.therapists[0].lines[0].addOns.length, 2);
+  assert.equal(earnings.data.gross, beforeCompletion.data.gross + 66);
+  assert.equal(earnings.data.completedTreatments, 2);
+  const line = earnings.data.therapists[0].lines.find((entry) => entry.bookingId === created.data.booking.id)!;
+  assert.equal(line.gross, 66);
+  assert.equal(line.addOns.length, 2);
 });
 
 test('late add-ons validate authorization, treatment compatibility, duplicate sales and included package extras', async (t) => {

@@ -5,17 +5,18 @@ import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { bookingSettings, business, catalog, type GuestSelection, type Locale } from '../catalog';
 import {
-  DemoApiError, addDemoBookingAddOns, emptyTherapistChoice, getDemoSession, isTherapistCompatible, loadStaffDemoState,
-  loadTodayDemoEarnings, loginDemoStaff, logoutDemoStaff, malaysiaDateValue, reassignDemoBooking,
+  DemoApiError, blockingAssignments, addDemoBookingAddOns, emptyTherapistChoice, getDemoSession, isTherapistCompatible, loadStaffDemoState,
+  loadTodayDemoEarnings, loginDemoStaff, logoutDemoStaff, malaysiaDateValue, occupancyWindow, reassignDemoBooking,
   reserveStaffDemoBooking, resetDemoState, rescheduleDemoBooking, therapistChoiceLabel,
   therapistMatchesPreference, updateDemoBookingStatus, updateDemoTherapist,
-  type DemoBooking, type DemoBookingSource, type DemoBookingStatus, type DemoDailyEarnings,
-  type DemoReservationInput, type DemoReservationResult, type DemoStaffUser,
-  type DemoState, type TherapistProfile,
+  type StaffBooking, type DemoBookingSource, type DemoBookingStatus, type DemoDailyEarnings,
+  type DemoReservationInput, type StaffReservationResult, type DemoStaffUser,
+  type StaffState, type TherapistProfile,
 } from '../demo-booking';
-import { createTimeSlots, estimatedGuestDuration, formatRinggit, getCategory, getMenuItem, guestTotal, orderTotal } from '../order';
+import { createTimeSlots, estimatedGuestDuration, formatRinggit, getCategory, getMenuItem, guestTotal, isValidBookingPhone, orderTotal } from '../order';
 import styles from './staff.module.css';
-import { RoomBoard } from '../room-board';
+import { OverrunWarnings, RoomBoard } from '../room-board';
+import { shopTime } from '../room-schedule';
 
 type Translate = (en: string, zh: string) => string;
 type Modal = { type: 'booking'; id: string } | { type: 'create' } | { type: 'therapist'; id: string } | null;
@@ -56,7 +57,7 @@ function dateLabel(date: string, locale: Locale) {
 }
 function resourceLabel(id: string, t: Translate) { return id.replace('bed-', `${t('Bed', '床')} `).replace('chair-', `${t('Chair', '椅')} `); }
 function extraSourceLabel(source: 'counter' | 'during_service', t: Translate) { return source === 'counter' ? t('At the counter', '柜台加购') : t('During treatment', '疗程中加购'); }
-function bookingMessage(booking: DemoBooking, therapists: TherapistProfile[], locale: Locale, kind: 'status' | 'reminder' | 'alternative', proposedDate: string, proposedTime: string) {
+function bookingMessage(booking: StaffBooking, therapists: TherapistProfile[], locale: Locale, kind: 'status' | 'reminder' | 'alternative', proposedDate: string, proposedTime: string) {
   const t: Translate = (en, zh) => locale === 'zh' ? zh : en;
   const heading = kind === 'alternative' ? t('ALTERNATIVE TIME PROPOSAL', '建议更改预约时间')
     : kind === 'reminder' ? t('APPOINTMENT REMINDER', '预约提醒')
@@ -73,19 +74,20 @@ function bookingMessage(booking: DemoBooking, therapists: TherapistProfile[], lo
     const therapistSnapshot = booking.therapistSnapshots?.find((entry) => entry.guestId === guest.id);
     lines.push(`*${t('GUEST', '顾客')} ${index + 1}${guest.name ? ` · ${guest.name}` : ''}*`,
       `${priceSnapshot?.category[locale] ?? category?.name[locale] ?? guest.categoryId}`,
-      `${priceSnapshot?.item[locale] ?? item?.name[locale] ?? guest.itemId} — ${formatRinggit(priceSnapshot?.itemPrice ?? item?.price ?? 0)}`);
+      `${priceSnapshot?.item[locale] ?? item?.name[locale] ?? guest.itemId}${booking.financialsHidden ? '' : ` — ${formatRinggit(priceSnapshot?.itemPrice ?? item?.price ?? 0)}`}`);
     (priceSnapshot?.addOns ?? guest.addOnIds.map((id) => category?.addOns.find((entry) => entry.id === id)).filter((entry) => entry !== undefined)).forEach((extra) => {
       const sale = booking.addOnSales?.find((entry) => entry.guestId === guest.id && entry.addOnId === extra.id);
-      lines.push(`+ ${extra.name[locale]} — ${formatRinggit(extra.price)}${sale ? ` (${extraSourceLabel(sale.source, t)})` : ''}`);
+      lines.push(`+ ${extra.name[locale]}${booking.financialsHidden ? '' : ` — ${formatRinggit(extra.price ?? 0)}`}${sale ? ` (${extraSourceLabel(sale.source, t)})` : ''}`);
     });
     lines.push(`${t('Preference', '偏好')}: ${therapistChoiceLabel(guest.therapistChoice, locale, therapists)}`);
     if (assignment) lines.push(`${t('Time', '时间')}: ${assignment.start}–${assignment.end}`);
     if (therapistSnapshot || therapist) lines.push(`${t('Therapist', '按摩师')}: ${therapistSnapshot?.staffNumber ?? therapist?.staffNumber} · ${therapistSnapshot?.name[locale] ?? therapist?.name[locale]}`);
-    lines.push(`${t('Subtotal', '小计')}: ${formatRinggit(priceSnapshot?.total ?? guestTotal(guest))}`, '');
+    if (!booking.financialsHidden) lines.push(`${t('Subtotal', '小计')}: ${formatRinggit(priceSnapshot?.total ?? guestTotal(guest))}`);
+    lines.push('');
   });
   lines.push(`${t('Contact', '联系人')}: ${booking.contactName}`, `${t('Phone', '电话')}: ${booking.contactPhone}`);
   if (booking.notes) lines.push(`${t('Notes', '备注')}: ${booking.notes}`);
-  lines.push('', `*${t('TOTAL', '总计')}: ${formatRinggit(booking.total)}*`, '');
+  if (!booking.financialsHidden) lines.push('', `*${t('TOTAL', '总计')}: ${formatRinggit(booking.total ?? 0)}*`, '');
   if (kind === 'alternative') lines.push(`${t('Proposed date/time', '建议日期／时间')}: ${proposedDate} ${proposedTime} (MYT)`, t('Please reply if this works for you. This proposal does not change or reserve your appointment.', '请回复是否方便。此建议尚未更改或保留您的预约时间。'));
   else if (booking.status === 'pending') lines.push(t('Your request is awaiting staff confirmation.', '您的预约申请正在等待员工确认。'));
   else if (booking.status === 'cancelled' || booking.status === 'expired' || booking.status === 'no_show') lines.push(t('This appointment is no longer reserved. Please contact us if you would like another time.', '此预约已不再保留。如需另约时间，请联系我们。'));
@@ -139,7 +141,7 @@ export default function StaffPage() {
   const [locale, setLocale] = useState<Locale>('en');
   const t: Translate = (en, zh) => locale === 'zh' ? zh : en;
   const [user, setUser] = useState<DemoStaffUser | null>(null);
-  const [state, setState] = useState<DemoState | null>(null);
+  const [state, setState] = useState<StaffState | null>(null);
   const [earnings, setEarnings] = useState<DemoDailyEarnings | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -221,7 +223,7 @@ export default function StaffPage() {
   const selectedTime = asOf || (date === malaysiaDateValue() ? clockTime : '14:00');
   const bookings = (state?.bookings ?? []).filter((booking) => booking.date === date).sort((a, b) => a.time.localeCompare(b.time));
   const activeBookings = bookings.filter((booking) => blocking.has(booking.status) || booking.status === 'completed');
-  const occupancy = bookings.filter((booking) => blocking.has(booking.status)).flatMap((booking) => booking.assignments).filter((assignment) => assignment.start <= selectedTime && assignment.cleanupEnd > selectedTime);
+  const occupancy = blockingAssignments(state?.bookings ?? [], date, new Date()).filter((assignment) => assignment.start <= selectedTime && assignment.cleanupEnd > selectedTime);
   const busyIds = new Set(occupancy.map((assignment) => assignment.therapistId));
   const workingTherapists = (state?.therapists ?? []).filter((therapist) => therapist.active && !therapist.leaveDates.includes(date) && therapist.shiftStart <= selectedTime && therapist.shiftEnd > selectedTime);
   const resources = new Set(occupancy.flatMap((assignment) => assignment.resourceIds));
@@ -255,6 +257,7 @@ export default function StaffPage() {
         <section className={styles.content}>
           <div className={styles.pageHeading}><div><p className={styles.eyebrow}>{t('Serene Family Massage', 'Serene 家庭按摩')}</p><h1>{tab === 'earnings' ? t('Today’s earnings', '今日收入') : tab === 'rooms' ? t('Rooms & occupancy', '房间与预约') : tab === 'team' ? t('Your team', '员工团队') : tab === 'bookings' ? t('Bookings', '预约管理') : t('A clear view of the day', '当日安排，一目了然')}</h1><p>{dateLabel(tab === 'earnings' ? (earnings?.date ?? malaysiaDateValue()) : date, locale)} <span>· MYT (UTC+8)</span></p></div>{user.role !== 'therapist' && <button type="button" className={styles.primaryButton} onClick={() => open({ type: 'create' })}>+ {t('Add booking', '新增预约')}</button>}</div>
           {feedback}
+          {state && tab !== 'rooms' && <OverrunWarnings state={state} locale={locale} onOpenBooking={(id) => open({ type: 'booking', id })} />}
           {tab !== 'earnings' && <div className={styles.toolbar}><label>{t('View date', '查看日期')}<input type="date" value={date} required onChange={(event) => { if (event.target.value) { setDate(event.target.value); setAsOf(''); } }} /></label><button type="button" className={styles.secondaryButton} onClick={() => { setDate(malaysiaDateValue()); setAsOf(''); }}>{t('Today', '今天')}</button>{user.role === 'owner' && <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => { if (window.confirm(t('Reset all local test bookings and restore the original sample data?', '要清除所有本地测试预约，并恢复原始示例数据吗？'))) void run(async () => { await resetDemoState(); await refresh(); }, t('Sample demo data restored.', '示例演示数据已恢复。')); }}>{t('Reset demo', '重置演示')}</button>}<div className={styles.sync}><span className={styles.syncDot} />{t('Refreshes every 15s', '每 15 秒更新')} {lastUpdated && <small>{lastUpdated}</small>}</div><button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => run(refresh)}>{t('Refresh', '刷新')} ↻</button></div>}
           {tab === 'earnings' ? earnings ? <TodayEarnings summary={earnings} locale={locale} canOpenBookings={user.role !== 'therapist'} onOpenBooking={(id) => open({ type: 'booking', id })} /> : <p role="status">{t('Loading today’s earnings…', '正在加载今日收入…')}</p> : !state ? <p role="status">{t('Loading bookings…', '正在加载预约…')}</p> : tab === 'rooms' ? <><div className={styles.capacityBar}><div><strong>{t('View at', '查看时间')}</strong><input type="time" value={selectedTime} aria-label={t('Room snapshot time', '房间查看时间')} onChange={(event) => setAsOf(event.target.value)} /><button type="button" className={styles.textButton} onClick={() => { setDate(malaysiaDateValue()); setAsOf(''); setClockTime(currentShopTime()); }}>{t('Now', '现在')}</button></div></div><RoomBoard state={state} date={date} time={selectedTime} locale={locale} onOpenBooking={(id) => open({ type: 'booking', id })} /></> : tab === 'team' ? <>
             <div className={styles.sectionHeading}><div><h2>{t('People behind the care', '用心服务的团队')}</h2><p>{user.role === 'owner' ? t('Manage profiles, treatment skills, hours and leave.', '管理员工资料、疗程技能、上班时间及休假。') : t('View profiles and update working hours or leave.', '查看员工资料并更新上班时间或休假。')}</p></div><span className={styles.pill}>{state.therapists.filter((profile) => profile.active).length} {t('active therapists', '位在职按摩师')}</span></div>
@@ -265,7 +268,7 @@ export default function StaffPage() {
                 <div className={styles.kpi}><span>{t('Appointments', '预约数')}</span><strong>{activeBookings.length.toString().padStart(2, '0')}</strong><small>{t('Active + completed bookings', '有效及已完成预约')}</small></div>
                 <div className={styles.kpi}><span>{t('Massage sessions', '按摩人次')}</span><strong>{activeBookings.reduce((sum, booking) => sum + booking.guests.length, 0).toString().padStart(2, '0')}</strong><small>{t('One session per guest', '每位顾客计一次')}</small></div>
                 <div className={styles.kpi}><span>{t('In treatment', '服务中')}</span><strong>{bookings.filter((booking) => booking.status === 'in_service').length.toString().padStart(2, '0')}</strong><small>{t('Appointments currently in progress', '目前正在进行的预约')}</small></div>
-                <div className={styles.kpi}><span>{t('Scheduled value', '已安排金额')}</span><strong><small>RM</small> {activeBookings.filter((booking) => booking.status !== 'pending').reduce((sum, booking) => sum + booking.total, 0)}</strong><small>{t('Planned services · not earned income', '已安排疗程 · 并非实际收入')}</small></div>
+                <div className={styles.kpi}><span>{t('Scheduled value', '已安排金额')}</span><strong>{user.role === 'receptionist' && date < malaysiaDateValue() ? t('Restricted', '无权查看') : <>RM {activeBookings.filter((booking) => booking.status !== 'pending').reduce((sum, booking) => sum + (booking.total ?? 0), 0)}</>}</strong><small>{t('Planned services · not earned income', '已安排疗程 · 并非实际收入')}</small></div>
               </div>
               <div className={styles.capacityBar}><div><strong>{t('Capacity at', '此时接待能力')}</strong><input type="time" value={selectedTime} aria-label={t('Capacity snapshot time', '接待能力查看时间')} onChange={(event) => setAsOf(event.target.value)} /><button type="button" className={styles.textButton} onClick={() => { setAsOf(''); setClockTime(currentShopTime()); }}>{date === malaysiaDateValue() ? t('Now', '现在') : t('Reset', '重置')}</button></div><span><b>{workingTherapists.length}</b> {t('on duty', '上班')}</span><span><b>{busyIds.size}</b> {t('busy / cleaning', '服务／清洁')}</span><span className={styles.freeCount}><b>{workingTherapists.filter((profile) => !busyIds.has(profile.id)).length}</b> {t('free', '空闲')}</span><span><b>{[...resources].filter((id) => id.startsWith('bed-')).length}/{bookingSettings.massageBeds}</b> {t('beds occupied', '张床使用中')}</span><span><b>{[...resources].filter((id) => id.startsWith('chair-')).length}/{bookingSettings.footMassageChairs}</b> {t('chairs occupied', '张足椅使用中')}</span></div>
               <div className={styles.teamStatusGrid} aria-label={t('Therapist status and massage counts', '按摩师状态及按摩人次')}>
@@ -289,7 +292,7 @@ export default function StaffPage() {
               </section>
             </>}
             <section className={styles.panel}><div className={styles.sectionHeading}><div><h2>{t('Appointment book', '预约记录')}</h2><p>{t('All booking channels, together.', '统一查看所有渠道的预约。')}</p></div><span className={styles.pill}>{visibleBookings.length} {t('bookings', '笔预约')}</span></div><div className={styles.filters}><label>{t('Search', '搜索')}<input type="search" placeholder={t('Name, phone or reference', '姓名、电话或预约编号')} value={search} onChange={(event) => setSearch(event.target.value)} /></label><label>{t('Status', '状态')}<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">{t('All statuses', '全部状态')}</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{t(...label)}</option>)}</select></label><label>{t('Source', '来源')}<select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">{t('All sources', '全部来源')}</option>{Object.entries(sourceLabels).map(([value, label]) => <option key={value} value={value}>{t(...label)}</option>)}</select></label></div>
-              {!visibleBookings.length ? <div className={styles.empty}><span>◷</span><h3>{t('No bookings to show', '暂无预约')}</h3><p>{t('Choose another date, adjust the filters, or add a booking.', '请选择其他日期、调整筛选条件，或新增预约。')}</p></div> : <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>{t('Time', '时间')}</th><th>{t('Customer', '顾客')}</th><th>{t('Treatment / team', '疗程／员工')}</th><th>{t('Source', '来源')}</th><th>{t('Status', '状态')}</th><th>{t('Total', '总计')}</th><th><span className={styles.srOnly}>{t('Manage', '管理')}</span></th></tr></thead><tbody>{visibleBookings.map((booking) => <tr key={booking.id} className={booking.status === 'pending' ? styles.pendingRow : ''}><td><strong>{booking.time}</strong><small>{booking.guests.length} {t('guest(s)', '位顾客')}</small></td><td><strong>{booking.contactName}</strong><small>{booking.reference}</small></td><td><span>{booking.guests.map((guest) => getCategory(guest.categoryId)?.name[locale]).join(' · ')}</span><small>{booking.assignments.map((assignment) => state.therapists.find((profile) => profile.id === assignment.therapistId)?.staffNumber).join(' · ')}</small></td><td>{t(...sourceLabels[booking.source])}</td><td><Status status={booking.status} t={t} /></td><td><strong className={styles.noWrap}>{formatRinggit(booking.total)}</strong></td><td><button type="button" className={styles.secondaryButton} aria-label={`${t('Manage booking', '管理预约')} ${booking.reference}`} onClick={() => open({ type: 'booking', id: booking.id })}>{t('View', '查看')} →</button></td></tr>)}</tbody></table></div>}
+              {!visibleBookings.length ? <div className={styles.empty}><span>◷</span><h3>{t('No bookings to show', '暂无预约')}</h3><p>{t('Choose another date, adjust the filters, or add a booking.', '请选择其他日期、调整筛选条件，或新增预约。')}</p></div> : <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>{t('Time', '时间')}</th><th>{t('Customer', '顾客')}</th><th>{t('Treatment / team', '疗程／员工')}</th><th>{t('Source', '来源')}</th><th>{t('Status', '状态')}</th><th>{t('Total', '总计')}</th><th><span className={styles.srOnly}>{t('Manage', '管理')}</span></th></tr></thead><tbody>{visibleBookings.map((booking) => <tr key={booking.id} className={booking.status === 'pending' ? styles.pendingRow : ''}><td><strong>{booking.time}</strong><small>{booking.guests.length} {t('guest(s)', '位顾客')}</small></td><td><strong>{booking.contactName}</strong><small>{booking.reference}</small></td><td><span>{booking.guests.map((guest) => getCategory(guest.categoryId)?.name[locale]).join(' · ')}</span><small>{booking.assignments.map((assignment) => state.therapists.find((profile) => profile.id === assignment.therapistId)?.staffNumber).join(' · ')}</small></td><td>{t(...sourceLabels[booking.source])}</td><td><Status status={booking.status} t={t} /></td><td><strong className={styles.noWrap}>{booking.financialsHidden ? t('Restricted', '无权查看') : formatRinggit(booking.total ?? 0)}</strong></td><td><button type="button" className={styles.secondaryButton} aria-label={`${t('Manage booking', '管理预约')} ${booking.reference}`} onClick={() => open({ type: 'booking', id: booking.id })}>{t('View', '查看')} →</button></td></tr>)}</tbody></table></div>}
             </section>
           </>}
           <footer className={styles.footer}>{t('Sample data · Local demo', '示例数据 · 本地演示')}<span>{t('Daily hours 11:00–23:59 · Cleaning buffer 5 min', '每天营业 11:00–23:59 · 清洁间隔 5 分钟')}</span></footer>
@@ -309,7 +312,7 @@ export default function StaffPage() {
   </main>;
 }
 
-function handleReservation(result: DemoReservationResult, t: Translate) {
+function handleReservation(result: StaffReservationResult, t: Translate) {
   if (!result.ok) throw new Error(`${t('No compatible therapist or resource is available for that change. The booking was not changed.', '此更改没有适合的按摩师或设施，预约未作更改。')}${result.alternatives.length ? ` ${t('Nearby times', '附近可选时段')}: ${result.alternatives.join(', ')}` : ''}`);
 }
 
@@ -333,6 +336,7 @@ function CreateBooking({ date, therapists, locale, busy, feedback, onSubmit }: {
   async function submit(event: FormEvent) {
     event.preventDefault(); setLocalError('');
     if (draft.contactName.trim().length < 2) { setLocalError(t('Enter a contact name of at least two characters.', '联系人姓名至少需要两个字符。')); return; }
+    if (!isValidBookingPhone(draft.contactPhone)) { setLocalError(t('Enter a valid contact phone number with 8–15 digits.', '请输入包含 8–15 位数字的有效联系电话。')); return; }
     if (draft.guests.some((guest) => guest.therapistChoice?.mode === 'specific' && !guest.therapistChoice.therapistId)) { setLocalError(t('Select a therapist for every specific-therapist request.', '请为每位指定按摩师的顾客选择按摩师。')); return; }
     await onSubmit({ ...draft, idempotencyKey: idempotencyKey.current });
   }
@@ -353,7 +357,7 @@ function CreateBooking({ date, therapists, locale, busy, feedback, onSubmit }: {
 
 type SaveGuestAddOns = (guestId: string, addOnIds: string[], source: 'counter' | 'during_service') => Promise<boolean>;
 
-function GuestExtrasForm({ guest, booking, therapist, locale, busy, onSave }: { guest: GuestSelection; booking: DemoBooking; therapist: TherapistProfile | undefined; locale: Locale; busy: boolean; onSave: SaveGuestAddOns }) {
+function GuestExtrasForm({ guest, booking, therapist, locale, busy, onSave }: { guest: GuestSelection; booking: StaffBooking; therapist: TherapistProfile | undefined; locale: Locale; busy: boolean; onSave: SaveGuestAddOns }) {
   const t: Translate = (en, zh) => locale === 'zh' ? zh : en;
   const [expanded, setExpanded] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -365,7 +369,7 @@ function GuestExtrasForm({ guest, booking, therapist, locale, busy, onSave }: { 
   const additions = options.filter((addon) => selected.includes(addon.id) && compatible(addon.id));
   const extraPrice = additions.reduce((sum, addon) => sum + addon.price, 0);
   const extraMinutes = additions.reduce((sum, addon) => sum + (addOnMinutes[addon.id] ?? 0), 0);
-  const currentTotal = booking.priceSnapshots?.find((entry) => entry.guestId === guest.id)?.total ?? guestTotal(guest);
+  const currentTotal = booking.financialsHidden ? undefined : booking.priceSnapshots?.find((entry) => entry.guestId === guest.id)?.total ?? guestTotal(guest);
   const formId = `extras-${guest.id}`;
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -394,7 +398,7 @@ function GuestExtrasForm({ guest, booking, therapist, locale, busy, onSave }: { 
         })}</div>}
         {options.length > 0 && <>
           <label>{t('Added where?', '加购地点')}<select value={source} onChange={(event) => setSource(event.target.value as 'counter' | 'during_service')}><option value="counter">{t('At the counter', '柜台加购')}</option><option value="during_service">{t('During treatment', '疗程中加购')}</option></select></label>
-          <div className={styles.extrasTotals} aria-live="polite"><div><span>{t('Extra amount', '加购金额')}</span><strong>+ {formatRinggit(extraPrice)}</strong></div><div><span>{t('Extra treatment time', '额外疗程时间')}</span><strong>+ {extraMinutes} {t('min', '分钟')}</strong></div><div className={styles.extrasUpdatedTotal}><span>{t('Updated guest total', '更新后此顾客总额')}</span><strong>{formatRinggit(currentTotal + extraPrice)}</strong></div></div>
+          <div className={styles.extrasTotals} aria-live="polite"><div><span>{t('Extra amount', '加购金额')}</span><strong>+ {formatRinggit(extraPrice)}</strong></div><div><span>{t('Extra treatment time', '额外疗程时间')}</span><strong>+ {extraMinutes} {t('min', '分钟')}</strong></div><div className={styles.extrasUpdatedTotal}><span>{t('Updated guest total', '更新后此顾客总额')}</span><strong>{currentTotal === undefined ? t('Restricted', '无权查看') : formatRinggit(currentTotal + extraPrice)}</strong></div></div>
           <button type="submit" className={styles.primaryButton} disabled={!additions.length || busy}>{busy ? t('Checking & saving…', '正在检查并保存…') : t('Save extras', '保存附加项目')}</button>
         </>}
       </fieldset>
@@ -403,7 +407,7 @@ function GuestExtrasForm({ guest, booking, therapist, locale, busy, onSave }: { 
   </div>;
 }
 
-function BookingDetail({ booking, therapists, locale, busy, feedback, onStatus, onReschedule, onReassign, onAddOns }: { booking: DemoBooking; therapists: TherapistProfile[]; locale: Locale; busy: boolean; feedback: ReactNode; onStatus: (status: DemoBookingStatus) => Promise<void>; onReschedule: (date: string, time: string, timing: 'together' | 'flexible') => Promise<void>; onReassign: (guestId: string, therapistId: string) => Promise<void>; onAddOns: SaveGuestAddOns }) {
+function BookingDetail({ booking, therapists, locale, busy, feedback, onStatus, onReschedule, onReassign, onAddOns }: { booking: StaffBooking; therapists: TherapistProfile[]; locale: Locale; busy: boolean; feedback: ReactNode; onStatus: (status: DemoBookingStatus) => Promise<void>; onReschedule: (date: string, time: string, timing: 'together' | 'flexible') => Promise<void>; onReassign: (guestId: string, therapistId: string) => Promise<void>; onAddOns: SaveGuestAddOns }) {
   const t: Translate = (en, zh) => locale === 'zh' ? zh : en;
   const [date, setDate] = useState(booking.date);
   const [time, setTime] = useState(booking.time);
@@ -418,7 +422,7 @@ function BookingDetail({ booking, therapists, locale, busy, feedback, onStatus, 
   const validPhone = /^\+[1-9][0-9]{7,14}$/.test(internationalPhone);
   const phone = validPhone ? internationalPhone.slice(1) : '';
   const actionable = !terminal.has(booking.status);
-  return <div className={styles.detail}>{feedback}<div className={styles.detailTop}><div><h3>{booking.contactName}</h3><a href={`tel:${booking.contactPhone}`}>{booking.contactPhone}</a></div><Status status={booking.status} t={t} /></div><div className={styles.detailFacts}><div><span>{t('Appointment', '预约时间')}</span><strong>{booking.date} · {booking.time}</strong></div><div><span>{t('Source', '来源')}</span><strong>{t(...sourceLabels[booking.source])}</strong></div><div><span>{t('Group timing', '同行时间')}</span><strong>{booking.groupTiming === 'flexible' ? t('Flexible starts', '可分批开始') : t('Start together', '同时开始')}</strong></div><div><span>{t('Total', '总计')}</span><strong>{formatRinggit(booking.total)}</strong></div></div>
+  return <div className={styles.detail}>{feedback}<div className={styles.detailTop}><div><h3>{booking.contactName}</h3><a href={`tel:${booking.contactPhone}`}>{booking.contactPhone}</a></div><Status status={booking.status} t={t} /></div><div className={styles.detailFacts}><div><span>{t('Appointment', '预约时间')}</span><strong>{booking.date} · {booking.time}</strong></div><div><span>{t('Source', '来源')}</span><strong>{t(...sourceLabels[booking.source])}</strong></div><div><span>{t('Group timing', '同行时间')}</span><strong>{booking.groupTiming === 'flexible' ? t('Flexible starts', '可分批开始') : t('Start together', '同时开始')}</strong></div><div><span>{t('Total', '总计')}</span><strong>{booking.financialsHidden ? t('Restricted', '无权查看') : formatRinggit(booking.total ?? 0)}</strong></div></div>
     {booking.status === 'pending' && booking.holdExpiresAt && <p className={styles.holdNotice}>{t('Capacity held until', '名额保留至')} {new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-GB', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(booking.holdExpiresAt))} MYT. {t('Confirm before it expires.', '请在过期前确认。')}</p>}
     {booking.guests.map((guest, index) => {
       const assignment = booking.assignments.find((entry) => entry.guestId === guest.id);
@@ -429,14 +433,14 @@ function BookingDetail({ booking, therapists, locale, busy, feedback, onStatus, 
       const displayedAddOns = priceSnapshot?.addOns ?? guest.addOnIds.map((id) => category?.addOns.find((entry) => entry.id === id)).filter((entry) => entry !== undefined);
       const usedFallback = Boolean(therapist && guest.therapistChoice?.mode !== 'none' && guest.therapistChoice?.requirement === 'preferred' && !therapistMatchesPreference(therapist, guest.therapistChoice));
       return <section className={styles.detailGuest} key={guest.id}>
-        <div className={styles.guestTop}><h3>{t('Guest', '顾客')} {index + 1}{guest.name && ` · ${guest.name}`}</h3><strong>{formatRinggit(priceSnapshot?.total ?? guestTotal(guest))}</strong></div>
+        <div className={styles.guestTop}><h3>{t('Guest', '顾客')} {index + 1}{guest.name && ` · ${guest.name}`}</h3><strong>{booking.financialsHidden ? t('Restricted', '无权查看') : formatRinggit(priceSnapshot?.total ?? guestTotal(guest))}</strong></div>
         <p><strong>{priceSnapshot?.category[locale] ?? category?.name[locale]}</strong><br />{priceSnapshot?.item[locale] ?? getMenuItem(guest.categoryId, guest.itemId)?.name[locale]}</p>
         {displayedAddOns.length > 0 && <ul className={styles.addonList}>{displayedAddOns.map((addon) => {
           const sale = booking.addOnSales?.find((entry) => entry.guestId === guest.id && entry.addOnId === addon.id);
-          return <li key={addon.id}><div>{addon.name[locale]}<small className={styles.extraSource}>{sale ? <>{extraSourceLabel(sale.source, t)} · <time dateTime={sale.addedAt}>{new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-GB', { timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(sale.addedAt))}</time> MYT{sale.addedMinutes > 0 && ` · +${sale.addedMinutes} ${t('min', '分钟')}`}</> : t('Selected at booking', '预约时已选择')}</small></div><span>+ {formatRinggit(addon.price)}</span></li>;
+          return <li key={addon.id}><div>{addon.name[locale]}<small className={styles.extraSource}>{sale ? <>{extraSourceLabel(sale.source, t)} · <time dateTime={sale.addedAt}>{new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-GB', { timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(sale.addedAt))}</time> MYT{sale.addedMinutes > 0 && ` · +${sale.addedMinutes} ${t('min', '分钟')}`}</> : t('Selected at booking', '预约时已选择')}</small></div>{!booking.financialsHidden && <span>+ {formatRinggit(addon.price ?? 0)}</span>}</li>;
         })}</ul>}
         <p className={styles.preference}><span>{t('Customer preference', '顾客偏好')}</span>{therapistChoiceLabel(guest.therapistChoice, locale, therapists)}{usedFallback && <small>{t(' · Alternative qualified therapist assigned', ' · 已安排其他合资格按摩师')}</small>}</p>
-        {assignment && <div className={styles.assignment}><span><b>{t('Assigned', '已安排')}</b>{therapistSnapshot?.staffNumber ?? therapist?.staffNumber} · {therapistSnapshot?.name[locale] ?? therapist?.name[locale]}</span><span><b>{t('Treatment', '疗程时间')}</b>{assignment.start}–{assignment.end}</span><span><b>{t('Cleaning until', '清洁结束')}</b>{assignment.cleanupEnd}</span><span><b>{t('Resources', '设施')}</b>{assignment.resourceIds.map((id) => resourceLabel(id, t)).join(', ')}</span></div>}
+        {assignment && <div className={styles.assignment}><span><b>{t('Assigned', '已安排')}</b>{therapistSnapshot?.staffNumber ?? therapist?.staffNumber} · {therapistSnapshot?.name[locale] ?? therapist?.name[locale]}</span><span><b>{t('Treatment', '疗程时间')}</b>{assignment.start}–{assignment.end}</span><span><b>{t('Cleaning until', '清洁结束')}</b>{occupancyWindow(booking, assignment).overdue ? t('Awaiting completion + 5 min', '待完成后再清洁5分钟') : booking.completedAt ? `${malaysiaDateValue(new Date(occupancyWindow(booking, assignment).cleanupEnd))} ${shopTime(new Date(occupancyWindow(booking, assignment).cleanupEnd))}` : assignment.cleanupEnd}</span><span><b>{t('Resources', '设施')}</b>{assignment.resourceIds.map((id) => resourceLabel(id, t)).join(', ')}</span></div>}
         {(['confirmed', 'checked_in', 'in_service'] as DemoBookingStatus[]).includes(booking.status) && <GuestExtrasForm guest={guest} booking={booking} therapist={therapist} locale={locale} busy={busy} onSave={onAddOns} />}
         {actionable && booking.status !== 'in_service' && <form className={styles.inlineForm} onSubmit={(event) => { event.preventDefault(); void onReassign(guest.id, assigned[guest.id] ?? assignment?.therapistId ?? ''); }}><label>{t('Assign / reassign therapist', '安排／更换按摩师')}<select value={assigned[guest.id] ?? assignment?.therapistId ?? ''} onChange={(event) => setAssigned({ ...assigned, [guest.id]: event.target.value })} required><option value="">{t('Select therapist', '选择按摩师')}</option>{therapists.filter((profile) => profile.active).map((profile) => <option key={profile.id} value={profile.id} disabled={!isTherapistCompatible(profile, guest)}>{profile.staffNumber} · {profile.name[locale]}{!isTherapistCompatible(profile, guest) ? ` (${t('Not compatible', '不适用')})` : ''}</option>)}</select></label><button className={styles.secondaryButton} disabled={busy || (assigned[guest.id] ?? assignment?.therapistId) === assignment?.therapistId}>{t('Assign', '安排')}</button></form>}
       </section>;

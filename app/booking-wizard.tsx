@@ -7,6 +7,7 @@ import { buildOrderMessage, estimatedGuestDuration, formatRinggit, getBookingVal
 import { calculateDemoAvailability, emptyTherapistChoice, findDemoSchedule, getIncludedAddonIds, loadDemoState, malaysiaDateValue, readDemoBooking, reserveDemoBooking, sampleTherapists, subscribeDemoState, therapistChoiceLabel, type DemoBooking, type DemoPublicState } from './demo-booking';
 import { calendarDays, changeTherapistChoice, isGuestReady, matchingTherapists, shiftDate } from './booking-flow';
 import styles from './booking.module.css';
+import SupportChat from './support-chat';
 
 const newGuest = (id: string): GuestSelection => ({ id, name: '', categoryId: 'full-body', itemId: '', addOnIds: [], therapistPreference: '', therapistChoice: emptyTherapistChoice() });
 const initialState: DemoPublicState = { version: 3, seedDate: '', therapists: sampleTherapists, bookings: [] };
@@ -115,6 +116,7 @@ export default function BookingWizard() {
   const selectedSchedule = selectedAvailable ? findDemoSchedule({ ...draft, therapists: state.therapists, bookings: state.bookings, now: clock }) : null;
 
   return <main className={styles.app}>
+    {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Preserve full-page home navigation, matching the local staff/boss workaround for the Vinext Link shim. */}
     <header className={styles.header}><a href="/" className={styles.brand}>Serene<span>{t('Family Massage', '家庭按摩')}</span></a><div className={styles.language} aria-label="Language"><button onClick={() => setLocale('en')} aria-pressed={locale === 'en'}>EN</button><button onClick={() => setLocale('zh')} aria-pressed={locale === 'zh'}>中文</button></div></header>
     <div className={styles.demo}>{t('DEMO · Sample therapists & test bookings', '演示 · 示例按摩师与测试预约')}</div>
     {!receipt && <nav className={styles.progress} aria-label={t('Booking progress', '预约进度')}>{steps.map((label, index) => <span key={index} className={index === step ? styles.currentStep : index < step ? styles.doneStep : ''} aria-current={index === step ? 'step' : undefined}><b>{index < step ? '✓' : index + 1}</b>{label}</span>)}</nav>}
@@ -205,5 +207,6 @@ export default function BookingWizard() {
     </>}
     </div></div>
     {!receipt && <footer className={styles.footer}>{step < 3 && <p className={styles.compactSelection}>{therapistChoiceLabel(choice, locale, state.therapists)}{guest.itemId ? " · " + getMenuItem(guest.categoryId, guest.itemId)?.name[locale] + " · " + estimatedGuestDuration(guest) + " " + t("min", "分钟") : ""}{guest.addOnIds.length > 0 ? " · " + guest.addOnIds.length + " " + t("extra(s)", "项加购") : ""}</p>}<div className={styles.footerSummary}><span>{step < 3 ? guestLabel(activeIndex) : guests.length + ' ' + t('guest(s)', '位顾客')}{step >= 3 && date ? ' · ' + dateLabel(date, true) : ''}{time ? ' · ' + time : ''}</span><strong>{formatRinggit(total)}</strong></div><div className={styles.footerActions}>{step > 0 && <button className={styles.secondary} disabled={busy} onClick={() => { setError(''); setStep(step - 1); }}>{t('Back', '返回')}</button>}<button className={styles.primary} disabled={busy || (step === 1 && !isGuestReady(guest, state.therapists)) || (step === 0 && !preferenceReady) || (step === 2 && !isGuestReady(guest, state.therapists)) || (step === 3 && !selectedAvailable) || (step === 4 && !ready)} onClick={() => step === 4 ? void confirm() : next()}>{busy ? t('Confirming…', '确认中…') : step === 4 ? t('Confirm demo booking', '确认测试预约') : step === 2 && guests.some((person, index) => index !== activeIndex && (!isGuestReady(person, state.therapists) || !extrasReviewed.includes(person.id))) ? t('Next guest', '下一位顾客') : step === 2 && !guest.addOnIds.length ? t('Continue without extras', '不加购，继续') : t('Next', '下一步')} {!busy && step < 4 && <span aria-hidden="true">→</span>}</button></div></footer>}
+    <SupportChat locale={locale} />
   </main>;
 }
