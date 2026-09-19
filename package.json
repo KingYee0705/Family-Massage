@@ -10,7 +10,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "node --test app/order.test.ts scripts/demo-server.test.ts scripts/boss-finance.test.ts scripts/boss-server.test.ts",
+    "test": "node --test app/order.test.ts app/booking-flow.test.ts app/room-schedule.test.ts scripts/demo-server.test.ts scripts/boss-finance.test.ts scripts/boss-server.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {

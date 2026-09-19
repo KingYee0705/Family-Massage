@@ -51,4 +51,12 @@ The local SQLite file is stored under `.demo-data/` and is ignored by Git. No pa
 
 ## Before production
 
+### Local redesign preview
+
+The customer page now uses four compact steps: therapist → treatment → date/time → contact and review. Therapist portraits, gender choices, and no preference come first. Treatment duration is selected before availability so the full visit and cleaning can fit. Back/Next keeps the page frame stable, and changing a choice preserves other form details.
+
+Staff and boss workspaces have a **Rooms & occupancy** tab with status cards and a daily timeline. Room 1–6 each contain one bed; Foot Chair 1–6 are separate resources. Both views derive from the existing booking records and refresh every 15 seconds. They show booked customers, available spaces, available therapists, start/end times, and cleaning buffers. Empty space does not guarantee a compatible therapist is free.
+
+These are scheduled occupancy views, not physical room sensors. An overdue visit still marked in service is flagged for staff to check; the warning does not automatically extend its reservation. Staff should reconcile the booking and any later appointments. Automatic WhatsApp reminders are not included. This redesign is local until approved for publication.
+
 Replace all sample therapist details and portraits, confirm their treatment capabilities and shifts, choose production hosting and a managed database, secure real staff accounts, define data retention and privacy policies, and connect payments or the official WhatsApp API only after approval.

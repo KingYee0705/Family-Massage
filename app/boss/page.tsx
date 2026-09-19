@@ -8,6 +8,7 @@ import { DemoApiError, getDemoSession, loginDemoStaff, logoutDemoStaff, malaysia
 import { loadBossMonth, reopenBossMonth, saveBossDeductions, saveBossStatement } from '../boss-api';
 import type { BossDeductionInput, BossMonthReport, BossTherapistMonth, BossTotals } from '../boss-types';
 import styles from './boss.module.css';
+import { BossRooms } from '../room-board';
 
 type Translate = (en: string, zh: string) => string;
 type Selection = { month: string; statementId: string };
@@ -90,6 +91,7 @@ export default function BossPage() {
   const [closeReview, setCloseReview] = useState(false);
   const [reopenReview, setReopenReview] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
+  const [workspaceTab, setWorkspaceTab] = useState<'accounts' | 'rooms'>('accounts');
   const [printMode, setPrintMode] = useState<'shop' | 'therapist'>('shop');
   const userRef = useRef<DemoStaffUser | null>(null);
   const selectionRef = useRef(selection);
@@ -233,6 +235,7 @@ export default function BossPage() {
   const print = (mode: 'shop' | 'therapist') => { setPrintMode(mode); window.setTimeout(() => window.print(), 0); };
   const localeSwitch = <div className={styles.localeSwitch} aria-label="Language / 语言"><button type="button" aria-pressed={locale === 'en'} onClick={() => setLocale('en')}>EN</button><button type="button" aria-pressed={locale === 'zh'} onClick={() => setLocale('zh')}>中文</button></div>;
 
+  const roomSessionExpired = useCallback(() => applySession(null), [applySession]);
   return <main className={`${styles.page} ${printMode === 'therapist' ? styles.printTherapist : styles.printShop}`}>
     <header className={styles.topbar}><a className={styles.brand} href="/"><span>S</span>{business.name}</a><div className={styles.topbarActions}>{localeSwitch}{user && <><a href="/staff">{t('Staff workspace', '员工工作台')}</a><button className={styles.quietButton} onClick={() => void signOut()} disabled={busy}>{t('Sign out', '退出')}</button></>}</div></header>
     <div className={styles.shell}>
@@ -243,6 +246,9 @@ export default function BossPage() {
         <div className={styles.demoCredentials}><strong>{t('Local demo login', '本地演示账号')}</strong><span>owner@serene.demo</span><code>SereneDemo!</code></div>
       </section> : user.role !== 'owner' ? <section className={styles.loginCard}><span className={styles.eyebrow}>{t('OWNER ACCESS', '老板专属')}</span><h1>{t('This space is for the owner.', '此页面仅供老板使用。')}</h1><p>{t('You are signed in as', '当前登录账号为')} {user.email}. {t('Monthly earnings and deductions are private to the owner account.', '每月收入与扣除额仅限老板账号查看。')}</p><button className={styles.primaryButton} onClick={() => void signOut()} disabled={busy}>{t('Sign out to use the owner account', '退出并使用老板账号登录')}</button><a className={styles.backLink} href="/staff">← {t('Back to staff workspace', '返回员工工作台')}</a>{error && <p className={styles.error} role="alert">{error}</p>}</section> : <>
         <div className={styles.demoBanner}><span>{t('LOCAL DEMO', '本地演示')}</span><p>{t('Sample therapists and starting deduction amounts. Review each therapist’s rental and electricity before using a statement.', '当前使用示例按摩师与初始扣除额。使用结算单前，请核对每位按摩师的房租与电费。')}</p></div>
+        <nav className={styles.reportToolbar} aria-label={t('Owner workspace', '老板工作台')}><div className={styles.toolbarButtons}><button className={workspaceTab === 'accounts' ? styles.primaryButton : styles.secondaryButton} aria-pressed={workspaceTab === 'accounts'} onClick={() => setWorkspaceTab('accounts')}>{t('Monthly accounts', '月度结算')}</button><button className={workspaceTab === 'rooms' ? styles.primaryButton : styles.secondaryButton} aria-pressed={workspaceTab === 'rooms'} onClick={() => setWorkspaceTab('rooms')}>{t('Rooms & occupancy', '房间与预约')}</button></div></nav>
+        {workspaceTab === 'rooms' && <BossRooms locale={locale} onUnauthorized={roomSessionExpired} />}
+        <div hidden={workspaceTab !== 'accounts'}>
         <div className={styles.heading}><div><span className={styles.eyebrow}>{t('OWNER WORKSPACE', '老板工作台')}</span><h1>{t('Monthly accounts', '月度账目')}</h1><p>{t('Every treatment. Every extra. One clear balance.', '每项疗程、每笔加购，清楚计算每月结算额。')}</p></div><div className={styles.monthControl}><label htmlFor="boss-month">{t('View month', '查看月份')}</label><input id="boss-month" type="month" min="2000-01" value={selection.month} max={currentMonth()} disabled={busy} onChange={(event) => { const value = event.target.value; if (/^\d{4}-\d{2}$/.test(value) && value >= '2000-01' && value <= currentMonth()) choose({ month: value, statementId: '' }); }} /><small>{t('Malaysia time · MYT', '马来西亚时间 · MYT')}</small></div></div>
         {error && <div className={styles.error} role="alert">{error}</div>}{notice && <div className={styles.notice} role="status">{notice}</div>}
         {!visible ? <div className={styles.loading} role="status">{loading ? t('Loading monthly accounts…', '正在载入月度账目…') : t('The monthly accounts are not available yet.', '月度账目暂时无法显示。')}<button className={styles.secondaryButton} onClick={() => void refresh(true)} disabled={loading || busy}>{t('Try again', '重试')}</button></div> : <>
@@ -261,6 +267,7 @@ export default function BossPage() {
           {visible.audit.length > 0 && <details className={styles.audit}><summary>{t('Changes & saved records', '更改与保存记录')} <span>{visible.audit.length}</span></summary><ul>{visible.audit.map((entry) => <li key={entry.id}><time dateTime={entry.at}>{timestampLabel(entry.at, locale)}</time><span>{entry.action}</span><small>{entry.actor}</small></li>)}</ul></details>}
           <footer className={styles.reportFooter}><span>{business.name} · {monthLabel(visible.month, locale)}</span><span>{t('Completed work only · 50% therapist commission', '仅计算已完成服务 · 按摩师佣金 50%')}</span></footer>
         </>}
+        </div>
       </>}
     </div>
   </main>;
